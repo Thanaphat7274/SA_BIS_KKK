@@ -1,13 +1,16 @@
-import logo from './logo.svg';
-
-
+import KPIPage from './pages/KPI_page';
+import React from 'react';
+import {BrowserRouter as Router, Route, Routes} from 'react-router-dom'
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1 className='text-3xl font-bold underline text-blue-600 rounded-lg text-center'> dasdadsadas</h1>
-      </header>
-    </div>
+    <Router>
+      <div className="App">
+        <Routes>
+          <Route path="/" element={<KPIPage />} />
+          <Route path="/about" element={<h1>About Page</h1>} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
