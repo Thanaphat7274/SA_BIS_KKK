@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import Sidebar from "../components/Sildebar";
 import Profile from "../components/Profile";
 import Dashboard from "../components/Dashbord";
-import Evaluation from "../components/Evaluation"
+import Selectepy from "../components/Selectsepy";
 
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
@@ -28,7 +28,7 @@ const KPIPage = () => {
             ) : (
           <>
             {activepage === 'dashboard' && <Dashboard userRole={userRole} userName={userName} />}
-            {activepage === 'evaluation' && <Evaluation userRole={userRole} userName={userName} />}
+            {activepage === 'evaluation' && <Selectepy userRole={userRole} userName={userName} />}
             {activepage === 'my-evaluation' && <div className="p-8">ผลการประเมินของฉัน</div>}
             {activepage === 'employees' && <div className="p-8">จัดการพนักงาน</div>}
             {activepage === 'attendance' && <div className="p-8">บันทึกการเข้างาน</div>}
