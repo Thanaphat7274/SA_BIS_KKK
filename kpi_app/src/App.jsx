@@ -1,6 +1,8 @@
-import KPIPage from './pages/KPI_page';
+import logo from './logo.svg';
 import React from 'react';
-import {BrowserRouter as Router, Route, Routes} from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import KPIPage from './pages/KPI_page';
+import Evaluation from './pages/Evaluation';
 
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -12,12 +14,8 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
-          
           <Route path="/" element={<KPIPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/user" element={<User />} />
+          <Route path="/evaluation" element={<Evaluation />} />
         </Routes>
       </div>
     </Router>
