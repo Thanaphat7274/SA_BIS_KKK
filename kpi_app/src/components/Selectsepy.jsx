@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from 'react-router-dom';
-const Selectsepy = ({ userRole, userName }) => {
+const Selectsepy = ({ userRole, userName , userFullName }) => {
     const [sel_emp, setSelectedEmployee] = React.useState("");
     const [sel_position, setSelectedPosition] = React.useState("");
     const [warn_msg, setWarningMessage] = React.useState("");

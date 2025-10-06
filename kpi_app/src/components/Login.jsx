@@ -40,8 +40,13 @@ const Login = () => {
         console.log(data);
         localStorage.setItem("role", data.role);
         localStorage.setItem("username", data.username);
-        if (data.role === 'admin') navigate('/admin');
-        else navigate('/user');
+        localStorage.setItem("name", data.name);
+          // Debug logs
+
+        console.log('local == ', localStorage.getItem("role"));
+        console.log('local name == ', localStorage.getItem("name"));
+        if (data.role === 'admin') navigate('/');
+        else navigate('/KPI');
       })
       .catch((err) => {
         alert(err.message);

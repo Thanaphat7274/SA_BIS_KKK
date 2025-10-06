@@ -6,14 +6,19 @@ import Selectepy from "../components/Selectsepy";
 
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
-  const userRole = localStorage.getItem("role") || "hr";
-  const userName = localStorage.getItem("username") || "user";
-
+  const userRole = localStorage.getItem("role");
+  const userName = localStorage.getItem("username");
+  const userFullName = localStorage.getItem("name");
+  console.log("userRole:", userRole);
+  console.log("userName:", userName);
+  console.log("userFullName:", userFullName);
   return (
     <div className="flex min-h-screen w-full">
+      
       <Sidebar
         userRole={userRole}
         userName={userName}
+        userFullName={userFullName}
         activepage={activepage}
         setActivepage={(page) => {setActivepage(page)
 
@@ -24,15 +29,16 @@ const KPIPage = () => {
       />
       <main className="flex-1 overflow-y-auto">
             {activepage === 'user-profile' ? (
-              <Profile userRole={userRole} userName={userName} />
+              <Profile userRole={userRole} userName={userName} userFullName={userFullName} />
             ) : (
           <>
-            {activepage === 'dashboard' && <Dashboard userRole={userRole} userName={userName} />}
-            {activepage === 'evaluation' && <Selectepy userRole={userRole} userName={userName} />}
+            {activepage === 'dashboard' && <Dashboard userRole={userRole} userName={userName} userFullName={userFullName} />}
+            {activepage === 'evaluation' && <Selectepy userRole={userRole} userName={userName} userFullName={userFullName} />}
             {activepage === 'my-evaluation' && <div className="p-8">ผลการประเมินของฉัน</div>}
             {activepage === 'employees' && <div className="p-8">จัดการพนักงาน</div>}
             {activepage === 'attendance' && <div className="p-8">บันทึกการเข้างาน</div>}
             {activepage === 'reports' && <div className="p-8">รายงาน KPI</div>}
+
           </>
         )}
       </main>

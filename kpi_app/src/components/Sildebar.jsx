@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import {ClipboardDocumentIcon,ClipboardDocumentCheckIcon,UserGroupIcon,CalendarDaysIcon,CloudArrowUpIcon,Bars4Icon,XMarkIcon,ArrowRightOnRectangleIcon} from '@heroicons/react/24/solid';
 
 const Sidebar = ({ userRole ,
-   userName , 
+   userName , userFullName ,
    onUserInfoClick = () => {},
    activepage ='dashboard',
    setActivepage = () => {},
@@ -23,7 +23,7 @@ const Sidebar = ({ userRole ,
             page: 'evaluation'
         },
     ],
-    employee: [
+    emp: [
       {
         key: 'dashboard',
         icon: ClipboardDocumentIcon,
@@ -98,14 +98,14 @@ const Sidebar = ({ userRole ,
             type="button"
             onClick={onUserInfoClick}
             className="p-4 border-b border-blue-500 hover:bg-blue-950 transition-colors w-full cursor-pointer"
-            aria-label={`เปิดเนื้อหาของ ${userName}`}
+            aria-label={`เปิดเนื้อหาของ ${userFullName}`}
           >
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-blue-400 rounded-full flex items-center justify-center font-bold ml-1">
-                {userName.charAt(0)}
+                {userFullName.charAt(0)}
               </div>
               <div>
-                <p className="font-semibold">{userName}</p>
+                <p className="font-semibold">{userFullName}</p>
                 <p className="text-xs text-blue-200">{roleLabels[userRole]}</p>
               </div>
             </div>

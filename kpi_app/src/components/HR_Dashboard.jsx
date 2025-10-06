@@ -55,7 +55,7 @@ const HR_Dashboard = () => {
           <h2 className="text-lg font-semibold mb-4 text-gray-700 flex justify-center">
             สถานะการประเมิน
           </h2>
-          <div className="flex justify-center click">
+          <div className="flex justify-center">
             <PieChart width={400} height={300}>
               <Pie
                 data={donutData}
