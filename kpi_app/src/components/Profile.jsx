@@ -1,11 +1,7 @@
 import React  from "react";
 
 const Content = ({userRole , userName }) => {
-    const roleLabels = {
-        supervisor: 'หัวหน้างาน (Supervisor)',
-        employee: 'พนักงาน (Employee)',
-        hr: 'ฝ่ายบุคคล (HR)'
-    };
+    
     
   return (
     <div className="p-4">

@@ -6,8 +6,8 @@ import Evaluation from "../components/Evaluation"
 
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
-  const userRole = 'supervisor'; // ตัวอย่างกำหนด บทบาทผู้ใช้
-  const userName = 'ผู้ใช้งาน'; // ตัวอย่างชื่อผู้ใช้
+  const userRole = localStorage.getItem("role") || "hr";
+  const userName = localStorage.getItem("username") || "user";
 
   return (
     <div className="flex min-h-screen w-full">
