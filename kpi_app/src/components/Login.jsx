@@ -39,8 +39,9 @@ const Login = () => {
         alert(data.message || 'Login success');
         console.log(data);
         localStorage.setItem("role", data.role);
+        localStorage.getItem("username",data.username)
         if (data.role === 'admin') navigate('/admin');
-        else navigate('/');
+        else navigate('/user');
       })
       .catch((err) => {
         alert(err.message);

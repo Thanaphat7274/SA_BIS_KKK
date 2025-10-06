@@ -1,11 +1,8 @@
 import React from "react";
 
+import HR_Dashboard from "./HR_Dashboard";
 const Dashboard = ({ userRole, userName }) => {
-      const roleLabels = {
-        supervisor: 'หัวหน้างาน (Supervisor)',
-        employee: 'พนักงาน (Employee)',
-        hr: 'ฝ่ายบุคคล (HR)'
-    };
+
     // state สำหรับ select และข้อความเตือน
     const [sel_emp, setSelectedEmployee] = React.useState("");
     const [warn_msg, setWarningMessage] = React.useState("");
@@ -22,9 +19,7 @@ const Dashboard = ({ userRole, userName }) => {
 
     if(userRole === 'hr') {
         return (
-            <div className="p-4">
-                <h1 className="text-2xl font-bold">Dashboard for HR</h1>
-            </div>
+            <HR_Dashboard />
         );
     }
     else if(userRole === 'supervisor') {
