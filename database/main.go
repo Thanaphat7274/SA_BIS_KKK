@@ -23,6 +23,27 @@ type Employee struct {
 	HireDate  string `json:"hiredate"`
 }
 
+type ScoreData struct {
+	AppraisalID int     `json:"appraisal_id"`
+	DetailID    int     `json:"detail_id"`
+	SubDetailID int     `json:"subdetail_id"`
+	ScoreValue  float64 `json:"score_value"`
+}
+
+type Detail struct {
+	DetailID   int         `json:"detail_id"`
+	Topic      string      `json:"topic"`
+	MaxScore   int         `json:"max_score,omitempty"`
+	SubDetails []SubDetail `json:"subdetails,omitempty"`
+}
+
+type SubDetail struct {
+	DetailID       int    `json:"detail_id"`
+	SubDetailID    int    `json:"subdetail_id"`
+	SubDetailTopic string `json:"subdetail_topic"`
+	MaxScore       int    `json:"max_score,omitempty"`
+}
+
 var db *sql.DB
 
 func getAllUser(c *gin.Context) {
@@ -144,15 +165,155 @@ func addEmployee(c *gin.Context) {
 	})
 }
 
-// func getAverageScore(c *gin.Context){
-// 	var rows *sql.Rows
+func saveScore(c *gin.Context) {
+	var scoreData ScoreData
+	if err := c.ShouldBindJSON(&scoreData); err != nil {
+		c.JSON(400, gin.H{"error": "Bad request"})
+		return
+	}
 
-// 	defer rows.Close()
-// 	for rows.Next(){
-// 		var user User
-// 	}
+	// บันทึกคะแนนลง database
+	_, err := db.Exec("INSERT OR REPLACE INTO Score (appraisal_id, detail_id, subdetail_id, score_value) VALUES (?, ?, ?, ?)",
+		scoreData.AppraisalID, scoreData.DetailID, scoreData.SubDetailID, scoreData.ScoreValue)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to save score"})
+		return
+	}
 
-// }
+	c.JSON(201, gin.H{"message": "Score saved successfully"})
+}
+
+func getDetails(c *gin.Context) {
+	rows, err := db.Query(`
+		SELECT d.detail_id, d.topic, COALESCE(d.max_score, 0) as max_score, sd.subdetail_id, sd.subdetail_topic
+		FROM detail d
+		LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
+		ORDER BY d.detail_id, sd.subdetail_id
+	`)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to fetch details"})
+		return
+	}
+	defer rows.Close()
+
+	detailsMap := make(map[int]*Detail)
+
+	for rows.Next() {
+		var detailID int
+		var topic string
+		var maxScore int
+		var subDetailID sql.NullInt64
+		var subDetailTopic sql.NullString
+
+		err := rows.Scan(&detailID, &topic, &maxScore, &subDetailID, &subDetailTopic)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to scan data"})
+			return
+		}
+
+		// สร้าง detail ถ้ายังไม่มี
+		if _, exists := detailsMap[detailID]; !exists {
+			detailsMap[detailID] = &Detail{
+				DetailID:   detailID,
+				Topic:      topic,
+				MaxScore:   maxScore,
+				SubDetails: []SubDetail{},
+			}
+		}
+
+		// เพิ่ม subdetail ถ้ามี
+		if subDetailID.Valid && subDetailTopic.Valid {
+			subDetail := SubDetail{
+				DetailID:       detailID,
+				SubDetailID:    int(subDetailID.Int64),
+				SubDetailTopic: subDetailTopic.String,
+			}
+			detailsMap[detailID].SubDetails = append(detailsMap[detailID].SubDetails, subDetail)
+		}
+	}
+
+	// แปลง map เป็น slice
+	var details []Detail
+	for _, detail := range detailsMap {
+		details = append(details, *detail)
+	}
+
+	c.JSON(200, details)
+}
+
+func addDetail(c *gin.Context) {
+	var requestData struct {
+		Topic    string `json:"topic"`
+		MaxScore int    `json:"max_score"`
+	}
+
+	if err := c.ShouldBindJSON(&requestData); err != nil {
+		c.JSON(400, gin.H{"error": "Bad request"})
+		return
+	}
+
+	if requestData.Topic == "" {
+		c.JSON(400, gin.H{"error": "Topic is required"})
+		return
+	}
+
+	if requestData.MaxScore <= 0 {
+		c.JSON(400, gin.H{"error": "Max score must be greater than 0"})
+		return
+	}
+
+	// หา detail_id ถัดไป (เนื่องจากมี constraint BETWEEN 1 AND 2 อาจต้องแก้)
+	var nextDetailID int
+	err := db.QueryRow("SELECT COALESCE(MAX(detail_id), 0) + 1 FROM detail").Scan(&nextDetailID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to get next detail_id"})
+		return
+	}
+
+	// เพิ่ม detail ใหม่ พร้อม max_score
+	_, err = db.Exec("INSERT INTO detail (detail_id, topic, max_score) VALUES (?, ?, ?)",
+		nextDetailID, requestData.Topic, requestData.MaxScore)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to add detail"})
+		return
+	}
+
+	c.JSON(201, gin.H{"message": "Detail added successfully"})
+}
+
+func addSubDetail(c *gin.Context) {
+	var subDetail SubDetail
+	if err := c.ShouldBindJSON(&subDetail); err != nil {
+		c.JSON(400, gin.H{"error": "Bad request"})
+		return
+	}
+
+	if subDetail.DetailID == 0 || subDetail.SubDetailTopic == "" {
+		c.JSON(400, gin.H{"error": "detail_id and subdetail_topic are required"})
+		return
+	}
+
+	// หา subdetail_id ถัดไป
+	var nextSubDetailID int
+	err := db.QueryRow("SELECT COALESCE(MAX(subdetail_id), 0) + 1 FROM SubDetail WHERE detail_id = ?",
+		subDetail.DetailID).Scan(&nextSubDetailID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to get next subdetail_id"})
+		return
+	}
+
+	// เพิ่ม subdetail ใหม่
+	_, err = db.Exec("INSERT INTO SubDetail (detail_id, subdetail_id, subdetail_topic) VALUES (?, ?, ?)",
+		subDetail.DetailID, nextSubDetailID, subDetail.SubDetailTopic)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to add subdetail"})
+		return
+	}
+
+	c.JSON(201, gin.H{"message": "SubDetail added successfully"})
+}
+
+
 
 func signupHandler(c *gin.Context) {
 	var user User
@@ -193,11 +354,30 @@ func main() {
 	}
 
 	r := gin.Default()
+
+	// เพิ่ม CORS middleware
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
 	api := r.Group("/api")
 	api.GET("/getAllUser", getAllUser)
 	api.POST("/login", loginHandler)
 	api.POST("/signup", signupHandler)
 	api.POST("/addEmployee", addEmployee)
+	api.POST("/saveScore", saveScore)
+	api.GET("/getDetails", getDetails)
+	api.POST("/addDetail", addDetail)
+	api.POST("/addSubDetail", addSubDetail)
 	// api.GET("/average-score", getAverageScore)
 	// api.GET("/average-score", getMaxScore)
 	// api.GET("/average-score", getMinScore)

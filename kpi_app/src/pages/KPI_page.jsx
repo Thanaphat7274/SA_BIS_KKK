@@ -3,10 +3,11 @@ import Sidebar from "../components/Sildebar";
 import Profile from "../components/Profile";
 import Dashboard from "../components/Dashbord";
 import Selectepy from "../components/Selectsepy";
+import ManageEvaluationCriteria from "./ManageEvaluationCriteria";
 
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
-  const userRole = localStorage.getItem("role") || "supervisor";
+  const userRole = localStorage.getItem("role") || "hr";
   const userName = localStorage.getItem("username") || "user";
   const userFullName = localStorage.getItem("name") || "User Fullname";
   
@@ -36,6 +37,7 @@ const KPIPage = () => {
             {activepage === 'employees' && <div className="p-8">จัดการพนักงาน</div>}
             {activepage === 'attendance' && <div className="p-8">บันทึกการเข้างาน</div>}
             {activepage === 'reports' && <div className="p-8">รายงาน KPI</div>}
+            {activepage === 'manage-criteria' && <ManageEvaluationCriteria />}
 
           </>
         )}

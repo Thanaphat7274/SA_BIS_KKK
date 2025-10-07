@@ -51,6 +51,12 @@ const Sidebar = ({ userRole ,
         page: 'employees'
       },
       {
+        key: 'manage-criteria',
+        icon: ClipboardDocumentCheckIcon,
+        label: 'จัดการเกณฑ์การประเมิน',
+        page: 'manage-criteria'
+      },
+      {
         key: 'attendance',
         icon: CalendarDaysIcon,
         label: 'บันทึกการเข้าทำงาน',
