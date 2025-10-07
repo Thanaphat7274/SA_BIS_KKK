@@ -1,12 +1,9 @@
-import logo from './logo.svg';
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import KPIPage from './pages/KPI_page';
-
-
-import LoginPage from './pages/LoginPage';
-import AddEmployeePage from './pages/AddEmployeePage';
-
+import Evaluation from './pages/Evaluation';
+import EvaluationForm from './pages/EvaluationForm';
 
 function App() {
   return (
@@ -14,9 +11,8 @@ function App() {
       <div className="App">
         <Routes>
           <Route path="/" element={<KPIPage />} />
-          <Route path="/add" element={<AddEmployeePage />} />
-          <Route path="/KPI" element={<KPIPage />} />
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/evaluation" element={<Evaluation />} />
+          <Route path="/evaluation-form" element={<EvaluationForm />} />
         </Routes>
       </div>
     </Router>
