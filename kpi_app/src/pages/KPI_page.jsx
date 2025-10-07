@@ -6,12 +6,10 @@ import Selectepy from "../components/Selectsepy";
 
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
-  const userRole = localStorage.getItem("role");
-  const userName = localStorage.getItem("username");
-  const userFullName = localStorage.getItem("name");
-  console.log("userRole:", userRole);
-  console.log("userName:", userName);
-  console.log("userFullName:", userFullName);
+  const userRole = localStorage.getItem("role") || "supervisor";
+  const userName = localStorage.getItem("username") || "user";
+  const userFullName = localStorage.getItem("name") || "User Fullname";
+  
   return (
     <div className="flex min-h-screen w-full">
       
