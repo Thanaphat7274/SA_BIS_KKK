@@ -8,7 +8,7 @@ import Edit_employee from "../components/Edit_employee";
 
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
-  const userRole = localStorage.getItem("role") || "hr";
+  const userRole = localStorage.getItem("role") || "supervisor";
   const userName = localStorage.getItem("username") || "user";
   const userFullName = localStorage.getItem("name") || "Fullname";
   
