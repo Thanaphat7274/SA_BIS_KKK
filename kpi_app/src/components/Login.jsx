@@ -20,7 +20,7 @@ const Login = () => {
       newError.password = "กรุณากรอกรหัสผ่าน";
       hasError = true;
     }
-    setError(newError);
+    setError(newError); 
     if (hasError) return;
     // Logic login
     fetch('/api/login', {

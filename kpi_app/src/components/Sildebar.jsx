@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {ClipboardDocumentIcon,ClipboardDocumentCheckIcon,UserGroupIcon,CalendarDaysIcon,CloudArrowUpIcon,Bars4Icon,XMarkIcon,ArrowRightOnRectangleIcon} from '@heroicons/react/24/solid';
+import { useNavigate } from "react-router-dom";
 
 const Sidebar = ({ userRole ,
    userName , userFullName ,
@@ -8,6 +9,20 @@ const Sidebar = ({ userRole ,
    setActivepage = () => {},
   }) => {
     const [isOpen, setIsOpen] = useState(true);
+    const navigate = useNavigate();
+
+    // ฟังก์ชัน logout
+    const handleLogout = () => {
+      // ลบข้อมูลที่เก็บไว้ใน localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userFullName');
+      
+      // นำทางไปหน้า login
+      navigate('/login/');
+    };
+
     const menuStructure = {
     supervisor: [
         {
@@ -77,8 +92,8 @@ const Sidebar = ({ userRole ,
     };
     const currentMenu = menuStructure[userRole];
       return (
-    <div className={`bg-gradient-to-b from-blue-600 to-blue-800 text-white transition-all duration-300 h-screen ${isOpen ? 'w-64' : 'w-20'}`}>
-      <div className="flex flex-col h-full">
+    <div className={`bg-gradient-to-b from-blue-600 to-blue-800 text-white transition-all duration-300 h-screen sticky top-0 ${isOpen ? 'w-64' : 'w-20'}`}>
+      <div className="flex flex-col h-screen">
         
         {/* Header เปิด-ปิด*/}
         <div className={`p-4 flex items-center 
@@ -144,7 +159,10 @@ const Sidebar = ({ userRole ,
 
         {/* Footer - Logout */}
         <div className="p-4 border-t border-blue-500">
-          <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-blue-950 transition-colors">
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-blue-950 transition-colors"
+          >
             <ArrowRightOnRectangleIcon className="w-5 h-5" />
             {isOpen && <span>ออกจากระบบ</span>}
           </button>
