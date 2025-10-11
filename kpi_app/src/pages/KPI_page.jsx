@@ -6,10 +6,10 @@ import Selectepy from "../components/Selectsepy";
 import ManageEvaluationCriteria from "./ManageEvaluationCriteria";
 import Edit_employee from "../components/Edit_employee";
 import EmployeeList from "./EmployeeList";
-
+import EvaluationResult from "../components/EvaluationResult";
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
-  const userRole = localStorage.getItem("role") || "hr";
+  const userRole = localStorage.getItem("role") || "emp";
   const userName = localStorage.getItem("username") || "user";
   const userFullName = localStorage.getItem("name") || "Fullname";
   
@@ -35,7 +35,7 @@ const KPIPage = () => {
           <>
             {activepage === 'dashboard' && <Dashboard userRole={userRole} userName={userName} userFullName={userFullName} />}
             {activepage === 'evaluation' && <Selectepy userRole={userRole} userName={userName} userFullName={userFullName} />}
-            {activepage === 'my-evaluation' && <div className="p-8">ผลการประเมินของฉัน</div>}
+            {activepage === 'my-evaluation' && <EvaluationResult username={userName} />}
             {activepage === 'employees' && <EmployeeList />}
             {activepage === 'attendance' && <div className="p-8">บันทึกการเข้างาน</div>}
             {activepage === 'reports' && <div className="p-8">รายงาน KPI</div>}
