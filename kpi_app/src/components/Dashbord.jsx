@@ -27,11 +27,11 @@ const Dashboard = ({ userRole, userName }) => {
     }
     else if(userRole === 'supervisor') {
         return (
-            <Supervisor_Dashboard />
+            <Supervisor_Dashboard userName={userName} />
         );
     }else if(userRole === 'employee' || userRole === 'emp') {
         return (
-            <Employee_Dashboard />
+            <Employee_Dashboard userName={userName} />
         );
     }
 };
