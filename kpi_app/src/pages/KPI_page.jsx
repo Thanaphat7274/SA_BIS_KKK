@@ -4,7 +4,7 @@ import Profile from "../components/Profile";
 import Dashboard from "../components/Dashbord";
 import Selectepy from "../components/Selectsepy";
 import ManageEvaluationCriteria from "./ManageEvaluationCriteria";
-import Edit_employee from "../components/Edit_employee";
+
 import EmployeeList from "./EmployeeList";
 import EvaluationResult from "../components/EvaluationResult";
 const KPIPage = () => {

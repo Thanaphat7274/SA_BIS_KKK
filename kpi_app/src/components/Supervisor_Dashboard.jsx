@@ -1,41 +1,59 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, ResponsiveContainer } from "recharts";
 import { UsersIcon, ClipboardDocumentCheckIcon, ChartBarIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 
-const Supervisor_Dashboard = () => {
-  // ข้อมูลสมาชิกในทีม
-  const teamMembers = [
-    { id: 1, name: "สมชาย ใจดี", position: "Developer", lastScore: 4.5, status: "ประเมินแล้ว", trend: "up" },
-    { id: 2, name: "สมหญิง รักงาน", position: "Designer", lastScore: 4.2, status: "ประเมินแล้ว", trend: "stable" },
-    { id: 3, name: "วิชัย มานะ", position: "Tester", lastScore: 3.8, status: "รอการประเมิน", trend: "down" },
-    { id: 4, name: "นภา สวยงาม", position: "Developer", lastScore: 4.7, status: "ประเมินแล้ว", trend: "up" },
-    { id: 5, name: "สมศักดิ์ ขยัน", position: "Analyst", lastScore: 4.0, status: "รอการประเมิน", trend: "stable" },
-    { id: 6, name: "พิมพ์ใจ ซื่อสัตย์", position: "Developer", lastScore: 4.3, status: "ประเมินแล้ว", trend: "up" },
-  ];
+const Supervisor_Dashboard = ({ userName }) => {
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState(null);
 
-  // ข้อมูลคะแนนตามตำแหน่ง
-  const scoresByPosition = [
-    { position: "Developer", avgScore: 4.5, count: 3 },
-    { position: "Designer", avgScore: 4.2, count: 1 },
-    { position: "Tester", avgScore: 3.8, count: 1 },
-    { position: "Analyst", avgScore: 4.0, count: 1 },
-  ];
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const response = await fetch(`/api/dashboard/supervisor/${userName}`);
+        if (response.ok) {
+          const data = await response.json();
+          setDashboardData(data);
+        }
+      } catch (error) {
+        console.error("Error fetching supervisor dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // สถานะการประเมิน
-  const evaluationStatus = [
-    { name: "ประเมินแล้ว", value: 4 },
-    { name: "รอการประเมิน", value: 2 },
-  ];
+    if (userName) {
+      fetchDashboardData();
+    }
+  }, [userName]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-gray-500">ไม่พบข้อมูล</p>
+      </div>
+    );
+  }
+
+  // ใช้ข้อมูลจาก API
+  const totalMembers = dashboardData.totalMembers || 0;
+  const evaluated = dashboardData.evaluated || 0;
+  const pending = dashboardData.pending || 0;
+  const avgTeamScore = dashboardData.avgTeamScore ? dashboardData.avgTeamScore.toFixed(2) : "0.00";
+  const teamMembers = dashboardData.teamMembers || [];
+  const scoresByPosition = dashboardData.scoresByPosition || [];
+  const evaluationStatus = dashboardData.evaluationStatus || [];
+  const needsAttention = dashboardData.needsAttention || [];
+  const highestScorer = dashboardData.topPerformer || { name: "N/A", lastScore: 0, position: "N/A" };
 
   const COLORS = ["#10B981", "#F59E0B"];
-
-  // คำนวณสถิติ
-  const totalMembers = teamMembers.length;
-  const evaluated = teamMembers.filter(m => m.status === "ประเมินแล้ว").length;
-  const pending = totalMembers - evaluated;
-  const avgTeamScore = (teamMembers.reduce((sum, m) => sum + m.lastScore, 0) / totalMembers).toFixed(2);
-  const highestScorer = teamMembers.reduce((a, b) => (a.lastScore > b.lastScore ? a : b));
-  const needsAttention = teamMembers.filter(m => m.lastScore < 4.0 || m.trend === "down");
 
   const getTrendIcon = (trend) => {
     if (trend === "up") return "↑";
@@ -131,20 +149,22 @@ const Supervisor_Dashboard = () => {
       </div>
 
       {/* Scores by Position Bar Chart */}
-      <div className="bg-white p-6 rounded-xl shadow-md">
-        <h2 className="text-lg font-semibold mb-4 text-gray-700">
-          คะแนนเฉลี่ยตามตำแหน่ง
-        </h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={scoresByPosition}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="position" />
-            <YAxis domain={[0, 5]} />
-            <Tooltip />
-            <Bar dataKey="avgScore" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {scoresByPosition.length > 0 && (
+        <div className="bg-white p-6 rounded-xl shadow-md">
+          <h2 className="text-lg font-semibold mb-4 text-gray-700">
+            คะแนนเฉลี่ยตามตำแหน่ง
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={scoresByPosition}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="position" />
+              <YAxis domain={[0, 5]} />
+              <Tooltip />
+              <Bar dataKey="avgScore" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Team Members Table */}
       <div className="bg-white p-6 rounded-xl shadow-md">
