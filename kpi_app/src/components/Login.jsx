@@ -46,7 +46,7 @@ const Login = () => {
         console.log('local == ', localStorage.getItem("role"));
         console.log('local name == ', localStorage.getItem("name"));
         if (data.role === 'admin') navigate('/');
-        else navigate('/KPI');
+        else navigate('/');
       })
       .catch((err) => {
         alert(err.message);
