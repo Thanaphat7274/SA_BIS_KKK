@@ -78,6 +78,11 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
 
     const selectedEmployee = employees.find(emp => emp.id === sel_emp);
     const selectedPosition = positions.find(pos => pos.id === sel_position);
+    
+    // กรองพนักงานตามตำแหน่งที่เลือก
+    const filteredEmployees = sel_position 
+        ? employees.filter(emp => emp.position_id === sel_position)
+        : [];
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -96,46 +101,7 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                 <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
                     <form onSubmit={handleSubmit} className="space-y-6" aria-label="ฟอร์มเลือกพนักงาน">
                         
-                        {/* Employee Selection */}
-                        <div className="space-y-3">
-                            <label className="flex items-center text-lg font-semibold text-gray-700 mb-2">
-                                <UserGroupIcon className="h-6 w-6 mr-2 text-blue-600" />
-                                เลือกพนักงาน
-                            </label>
-                            <select 
-                                className="w-full p-4 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition-all text-lg bg-gray-50 hover:bg-white cursor-pointer" 
-                                value={sel_emp} 
-                                onChange={(e) => {
-                                    setSelectedEmployee(e.target.value);
-                                    setWarningMessage("");
-                                }}
-                                aria-label="เลือกพนักงาน"
-                                aria-invalid={!!warn_msg}
-                                disabled={loading}
-                            >
-                                <option value="" disabled>-- เลือกพนักงาน --</option>
-                                {employees.map((emp) => (
-                                    <option key={emp.id} value={emp.id}>
-                                        {emp.name} ({emp.employeeCode})
-                                    </option>
-                                ))}
-                            </select>
-                            
-                            {/* Selected Employee Preview */}
-                            {selectedEmployee && (
-                                <div className="mt-3 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
-                                    <p className="text-sm text-gray-600">พนักงานที่เลือก:</p>
-                                    <p className="text-lg font-semibold text-blue-700">
-                                        {selectedEmployee.name}
-                                    </p>
-                                    <p className="text-sm text-gray-500">
-                                        รหัส: {selectedEmployee.employeeCode}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Position Selection */}
+                        {/* Position Selection - เลือกก่อน */}
                         <div className="space-y-3">
                             <label className="flex items-center text-lg font-semibold text-gray-700 mb-2">
                                 <BriefcaseIcon className="h-6 w-6 mr-2 text-blue-600" />
@@ -146,6 +112,7 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                                 value={sel_position} 
                                 onChange={(e) => {
                                     setSelectedPosition(e.target.value);
+                                    setSelectedEmployee(""); // รีเซ็ตการเลือกพนักงานเมื่อเปลี่ยนตำแหน่ง
                                     setWarningMessage("");
                                 }}
                                 aria-label="เลือกตำแหน่งงาน"
@@ -165,6 +132,64 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                                     <p className="text-sm text-gray-600">ตำแหน่งที่เลือก:</p>
                                     <p className="text-lg font-semibold text-green-700">
                                         {selectedPosition.title}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Employee Selection - เลือกหลังจากเลือกตำแหน่ง */}
+                        <div className="space-y-3">
+                            <label className="flex items-center text-lg font-semibold text-gray-700 mb-2">
+                                <UserGroupIcon className="h-6 w-6 mr-2 text-blue-600" />
+                                เลือกพนักงาน
+                            </label>
+                            <select 
+                                className="w-full p-4 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition-all text-lg bg-gray-50 hover:bg-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" 
+                                value={sel_emp} 
+                                onChange={(e) => {
+                                    setSelectedEmployee(e.target.value);
+                                    setWarningMessage("");
+                                }}
+                                aria-label="เลือกพนักงาน"
+                                aria-invalid={!!warn_msg}
+                                disabled={!sel_position}
+                            >
+                                <option value="" disabled>
+                                    {sel_position ? '-- เลือกพนักงาน --' : '-- กรุณาเลือกตำแหน่งก่อน --'}
+                                </option>
+                                {filteredEmployees.map((emp) => (
+                                    <option key={emp.id} value={emp.id}>
+                                        {emp.name} ({emp.employeeCode})
+                                    </option>
+                                ))}
+                            </select>
+                            
+                            {/* แสดงจำนวนพนักงานในตำแหน่งที่เลือก */}
+                            {sel_position && filteredEmployees.length === 0 && (
+                                <div className="mt-3 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
+                                    <p className="text-sm text-yellow-700">
+                                        ไม่มีพนักงานในตำแหน่งนี้
+                                    </p>
+                                </div>
+                            )}
+                            
+                            {sel_position && filteredEmployees.length > 0 && !sel_emp && (
+                                <div className="mt-3 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+                                    <p className="text-sm text-blue-700">
+                                        มีพนักงาน {filteredEmployees.length} คน ในตำแหน่งนี้
+                                    </p>
+                                </div>
+                            )}
+                            
+                            {/* Selected Employee Preview */}
+                            {selectedEmployee && (
+                                <div className="mt-3 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+                                    <p className="text-sm text-gray-600">พนักงานที่เลือก:</p>
+                                    <p className="text-lg font-semibold text-blue-700">
+                                        {selectedEmployee.name}
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                        รหัส: {selectedEmployee.employeeCode}
                                     </p>
                                 </div>
                             )}
