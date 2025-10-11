@@ -18,12 +18,12 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                 setLoading(true);
                 
                 // ดึงข้อมูลพนักงาน
-                const empResponse = await fetch('/api/employees'); // เปลี่ยน URL ตาม API ของคุณ
+                const empResponse = await fetch('http://localhost:8080/api/employees'); // เปลี่ยน URL ตาม API ของคุณ
                 const empData = await empResponse.json();
                 setEmployees(empData);
                 
                 // ดึงข้อมูลตำแหน่ง
-                const posResponse = await fetch('/api/positions'); // เปลี่ยน URL ตาม API ของคุณ
+                const posResponse = await fetch('http://localhost:8080/api/positions'); // เปลี่ยน URL ตาม API ของคุณ
                 const posData = await posResponse.json();
                 setPositions(posData);
                 

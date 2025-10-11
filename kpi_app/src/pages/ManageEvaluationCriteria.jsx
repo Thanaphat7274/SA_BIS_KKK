@@ -17,7 +17,7 @@ const ManageEvaluationCriteria = () => {
     try {
       setLoading(true);
       // ใช้ fetch API แทน axios
-      const response = await fetch('/api/getDetails');
+      const response = await fetch('http://localhost:8080/api/getDetails');
       if (response.ok) {
         const data = await response.json();
         setDetails(data || []);
@@ -49,7 +49,7 @@ const ManageEvaluationCriteria = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/addDetail', {
+      const response = await fetch('http://localhost:8080/api/addDetail', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -86,7 +86,7 @@ const ManageEvaluationCriteria = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/addSubDetail', {
+      const response = await fetch('http://localhost:8080/api/addSubDetail', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
