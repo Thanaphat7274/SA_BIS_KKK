@@ -5,6 +5,7 @@ import Dashboard from "../components/Dashbord";
 import Selectepy from "../components/Selectsepy";
 import ManageEvaluationCriteria from "./ManageEvaluationCriteria";
 import Edit_employee from "../components/Edit_employee";
+import EmployeeList from "./EmployeeList";
 
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
@@ -35,7 +36,7 @@ const KPIPage = () => {
             {activepage === 'dashboard' && <Dashboard userRole={userRole} userName={userName} userFullName={userFullName} />}
             {activepage === 'evaluation' && <Selectepy userRole={userRole} userName={userName} userFullName={userFullName} />}
             {activepage === 'my-evaluation' && <div className="p-8">ผลการประเมินของฉัน</div>}
-            {activepage === 'employees' && <Edit_employee />}
+            {activepage === 'employees' && <EmployeeList />}
             {activepage === 'attendance' && <div className="p-8">บันทึกการเข้างาน</div>}
             {activepage === 'reports' && <div className="p-8">รายงาน KPI</div>}
             {activepage === 'manage-criteria' && <ManageEvaluationCriteria />}

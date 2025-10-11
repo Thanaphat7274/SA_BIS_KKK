@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
@@ -165,6 +166,66 @@ func addEmployee(c *gin.Context) {
 	})
 }
 
+// ดึงรายชื่อพนักงานทั้งหมด
+func getEmployees(c *gin.Context) {
+	rows, err := db.Query(`
+		SELECT 
+			e.emp_id,
+			e.first_name,
+			e.last_name,
+			e.hire_date,
+			u.username
+		FROM employees e
+		LEFT JOIN users u ON e.emp_id = u.emp_id
+		ORDER BY e.emp_id DESC
+	`)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to fetch employees"})
+		return
+	}
+	defer rows.Close()
+
+	var employees []map[string]interface{}
+	for rows.Next() {
+		var empID int
+		var firstName, lastName string
+		var hireDate sql.NullString
+		var username sql.NullString
+
+		err := rows.Scan(&empID, &firstName, &lastName, &hireDate, &username)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to scan employee data"})
+			return
+		}
+
+		employee := map[string]interface{}{
+			"emp_id":     empID,
+			"first_name": firstName,
+			"last_name":  lastName,
+		}
+
+		if hireDate.Valid {
+			employee["hire_date"] = hireDate.String
+		} else {
+			employee["hire_date"] = nil
+		}
+
+		if username.Valid {
+			employee["username"] = username.String
+		} else {
+			employee["username"] = nil
+		}
+
+		employees = append(employees, employee)
+	}
+
+	if employees == nil {
+		employees = []map[string]interface{}{}
+	}
+
+	c.JSON(200, employees)
+}
+
 func saveScore(c *gin.Context) {
 	var scoreData ScoreData
 	if err := c.ShouldBindJSON(&scoreData); err != nil {
@@ -313,8 +374,6 @@ func addSubDetail(c *gin.Context) {
 	c.JSON(201, gin.H{"message": "SubDetail added successfully"})
 }
 
-
-
 func signupHandler(c *gin.Context) {
 	var user User
 	if err := c.ShouldBindJSON(&user); err != nil {
@@ -355,25 +414,15 @@ func main() {
 
 	r := gin.Default()
 
-	// เพิ่ม CORS middleware
-	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	})
+	
+	r.Use(cors.Default())
 
 	api := r.Group("/api")
 	api.GET("/getAllUser", getAllUser)
 	api.POST("/login", loginHandler)
 	api.POST("/signup", signupHandler)
 	api.POST("/addEmployee", addEmployee)
+	api.GET("/employees", getEmployees)
 	api.POST("/saveScore", saveScore)
 	api.GET("/getDetails", getDetails)
 	api.POST("/addDetail", addDetail)
