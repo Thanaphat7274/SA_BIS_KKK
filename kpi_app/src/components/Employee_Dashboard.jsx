@@ -1,47 +1,54 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Tooltip } from "recharts";
 import { UserCircleIcon, ChartBarIcon, TrophyIcon, CalendarIcon, ArrowTrendingUpIcon } from "@heroicons/react/24/outline";
 
-const Employee_Dashboard = () => {
-  // ข้อมูลคะแนนตามสมรรถนะ (Radar Chart)
-  const competencyScores = [
-    { competency: "ให้ความสําคัญกับคุณภาพ", score: 4.5, fullMark: 5 },
-    { competency: "ให้ความสําคัญกับผู้รับบริการ", score: 4.0, fullMark: 5 },
-    { competency: "การทํางานเป็นทีม", score: 4.3, fullMark: 5 },
-    { competency: "มุ่งเน้นบุคลากร", score: 4.7, fullMark: 5 },
-  ];
+const Employee_Dashboard = ({ userName }) => {
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState(null);
 
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const response = await fetch(`/api/dashboard/employee/${userName}`);
+        if (response.ok) {
+          const data = await response.json();
+          setDashboardData(data);
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // ข้อมูลการประเมินล่าสุด
-  const recentEvaluations = [
-    { 
-      date: "2025-06-15", 
-      evaluator: "ผู้จัดการ A", 
-      score: 4.5, 
-      evaluatorComment: "ทำงานได้ดีมาก มีความรับผิดชอบสูง",
-      employeeComment: "ขอบคุณครับ จะพัฒนาต่อไป" 
-    },
-    { 
-      date: "2025-05-10", 
-      evaluator: "หัวหน้าทีม B", 
-      score: 4.3, 
-      evaluatorComment: "มีความรับผิดชอบสูง ควรพัฒนาทักษะการสื่อสาร",
-      employeeComment: "จะปรับปรุงการสื่อสารให้ดีขึ้นครับ" 
-    },
-    { 
-      date: "2025-04-05", 
-      evaluator: "ผู้จัดการ A", 
-      score: 4.2, 
-      evaluatorComment: "ควรปรับปรุงการสื่อสารกับทีม",
-      employeeComment: "รับทราบครับ จะให้ความสำคัญในเรื่องนี้" 
-    },
-  ];
+    if (userName) {
+      fetchDashboardData();
+    }
+  }, [userName]);
 
-  // สถิติรวม
-  const currentScore = 4.5;
-  const avgScore = 4.23;
-  const improvement = "+0.27";
-  const rank = "Top 15%";
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-gray-500">ไม่พบข้อมูล</p>
+      </div>
+    );
+  }
+
+  // ใช้ข้อมูลจาก API
+  const currentScore = dashboardData.currentScore || 0;
+  const avgScore = dashboardData.avgScore || 0;
+  const improvement = dashboardData.improvement || "0.00";
+  const rank = dashboardData.rank || "N/A";
+  const competencyScores = dashboardData.competencyScores || [];
+  const recentEvaluations = dashboardData.recentEvaluations || [];
 
   const getProgressColor = (progress) => {
     if (progress >= 80) return "bg-green-500";

@@ -150,12 +150,11 @@ const EvaluationResult = ({ username }) => {
                       <CheckCircleIcon className="h-5 w-5 text-green-600 mr-3 mt-1 flex-shrink-0" />
                       <div>
                         <p className="font-semibold text-gray-800">
-                          1. คะแนนการมาปฏิบัติงานต่อปี
+                          1. {evaluationData.attendance.details || "คะแนนการมาปฏิบัติงานต่อปี"}
                         </p>
                         <p className="text-sm text-gray-500">
-                          (ขาดงาน ลา มา สาย หรือ Attendance, ส่วนที่ 1)
+                          (น้ำหนัก {evaluationData.attendance.weight}%)
                         </p>
-                        <p className="text-sm text-blue-600 mt-1 italic">{evaluationData.attendance.details}</p>
                       </div>
                     </div>
                   </td>
@@ -182,12 +181,11 @@ const EvaluationResult = ({ username }) => {
                       <ChartBarIcon className="h-5 w-5 text-blue-600 mr-3 mt-1 flex-shrink-0" />
                       <div>
                         <p className="font-semibold text-gray-800">
-                          2. คะแนนผลงานตามตัวชี้วัด
+                          2. {evaluationData.performance.details || "คะแนนผลงานตามตัวชี้วัด"}
                         </p>
                         <p className="text-sm text-gray-500">
-                          (Performance / KPI, ส่วนที่ 2)
+                          (น้ำหนัก {evaluationData.performance.weight}%)
                         </p>
-                        <p className="text-sm text-blue-600 mt-1 italic">{evaluationData.performance.details}</p>
                       </div>
                     </div>
                   </td>
@@ -214,12 +212,11 @@ const EvaluationResult = ({ username }) => {
                       <ClipboardDocumentCheckIcon className="h-5 w-5 text-purple-600 mr-3 mt-1 flex-shrink-0" />
                       <div>
                         <p className="font-semibold text-gray-800">
-                          3. พฤติกรรมการปฏิบัติงาน
+                          3. {evaluationData.behavior.details || "พฤติกรรมการปฏิบัติงาน"}
                         </p>
                         <p className="text-sm text-gray-500">
-                          (Behavior, ส่วนที่ 3)
+                          (น้ำหนัก {evaluationData.behavior.weight}%)
                         </p>
-                        <p className="text-sm text-blue-600 mt-1 italic">{evaluationData.behavior.details}</p>
                       </div>
                     </div>
                   </td>

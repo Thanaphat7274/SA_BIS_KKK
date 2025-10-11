@@ -89,6 +89,77 @@ type ProfileData struct {
 	EvaluationsCount int     `json:"evaluationsCount"`
 }
 
+type CompetencyScore struct {
+	Competency string  `json:"competency"`
+	Score      float64 `json:"score"`
+	FullMark   int     `json:"fullMark"`
+}
+
+type RecentEvaluation struct {
+	Date             string  `json:"date"`
+	Evaluator        string  `json:"evaluator"`
+	Score            float64 `json:"score"`
+	EvaluatorComment string  `json:"evaluatorComment"`
+	EmployeeComment  string  `json:"employeeComment"`
+}
+
+type EmployeeDashboardData struct {
+	CurrentScore         float64            `json:"currentScore"`
+	AvgScore             float64            `json:"avgScore"`
+	Improvement          string             `json:"improvement"`
+	Rank                 string             `json:"rank"`
+	CompetencyScores     []CompetencyScore  `json:"competencyScores"`
+	RecentEvaluations    []RecentEvaluation `json:"recentEvaluations"`
+}
+
+type TeamMember struct {
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	Position  string  `json:"position"`
+	LastScore float64 `json:"lastScore"`
+	Status    string  `json:"status"`
+	Trend     string  `json:"trend"`
+}
+
+type ScoreByPosition struct {
+	Position string  `json:"position"`
+	AvgScore float64 `json:"avgScore"`
+	Count    int     `json:"count"`
+}
+
+type EvaluationStatusData struct {
+	Name  string `json:"name"`
+	Value int    `json:"value"`
+}
+
+type SupervisorDashboardData struct {
+	TotalMembers       int                    `json:"totalMembers"`
+	Evaluated          int                    `json:"evaluated"`
+	Pending            int                    `json:"pending"`
+	AvgTeamScore       float64                `json:"avgTeamScore"`
+	TeamMembers        []TeamMember           `json:"teamMembers"`
+	ScoresByPosition   []ScoreByPosition      `json:"scoresByPosition"`
+	EvaluationStatus   []EvaluationStatusData `json:"evaluationStatus"`
+	NeedsAttention     []TeamMember           `json:"needsAttention"`
+	TopPerformer       *TeamMember            `json:"topPerformer"`
+}
+
+type DepartmentScore struct {
+	Department string  `json:"department"`
+	Score      float64 `json:"score"`
+}
+
+type HRDashboardData struct {
+	AvgScore          float64           `json:"avgScore"`
+	BestDept          string            `json:"bestDept"`
+	BestScore         float64           `json:"bestScore"`
+	WorstDept         string            `json:"worstDept"`
+	WorstScore        float64           `json:"worstScore"`
+	DepartmentScores  []DepartmentScore `json:"departmentScores"`
+	EvaluatedCount    int               `json:"evaluatedCount"`
+	NotEvaluatedCount int               `json:"notEvaluatedCount"`
+}
+
 var db *sql.DB
 
 func getAllUser(c *gin.Context) {
@@ -881,8 +952,307 @@ func updateProfile(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Failed to update profile"})
 		return
 	}
+	
+		c.JSON(200, gin.H{"message": "Profile updated successfully"})
+}
 
-	c.JSON(200, gin.H{"message": "Profile updated successfully"})
+// getEmployeeDashboard - ดึงข้อมูล Dashboard สำหรับพนักงาน
+func getEmployeeDashboard(c *gin.Context) {
+	username := c.Param("username")
+	
+	// หา emp_id จาก username
+	var empID int
+	err := db.QueryRow("SELECT emp_id FROM users WHERE username = ?", username).Scan(&empID)
+	if err != nil {
+		c.JSON(404, gin.H{"error": "User not found"})
+		return
+	}
+	
+	dashboard := EmployeeDashboardData{}
+	
+	// คำนวณคะแนนปัจจุบัน (latest evaluation)
+	var currentScore sql.NullFloat64
+	db.QueryRow(`
+		SELECT SUM(s.score_value)
+		FROM Score s
+		JOIN appraisal a ON s.appraisal_id = a.ap_id
+		WHERE a.user_id = ?
+		ORDER BY a.evaluated_at DESC
+		LIMIT 1
+	`, empID).Scan(&currentScore)
+	
+	if currentScore.Valid {
+		dashboard.CurrentScore = currentScore.Float64 / 20.0 // แปลงเป็นคะแนน 5
+	}
+	
+	// คำนวณคะแนนเฉลี่ย
+	var avgScore sql.NullFloat64
+	db.QueryRow(`
+		SELECT AVG(total_score) FROM (
+			SELECT SUM(score_value) as total_score
+			FROM Score s
+			JOIN appraisal a ON s.appraisal_id = a.ap_id
+			WHERE a.user_id = ?
+			GROUP BY s.appraisal_id
+		)
+	`, empID).Scan(&avgScore)
+	
+	if avgScore.Valid {
+		dashboard.AvgScore = avgScore.Float64 / 20.0
+	}
+	
+	// คำนวณการพัฒนา
+	if dashboard.CurrentScore > dashboard.AvgScore {
+		diff := dashboard.CurrentScore - dashboard.AvgScore
+		dashboard.Improvement = fmt.Sprintf("+%.2f", diff)
+	} else {
+		diff := dashboard.AvgScore - dashboard.CurrentScore
+		dashboard.Improvement = fmt.Sprintf("-%.2f", diff)
+	}
+	
+	// TODO: คำนวณ Rank (ต้องเปรียบเทียบกับคนอื่น)
+	dashboard.Rank = "Top 15%"
+	
+	// ดึงคะแนนตาม Detail (Competency)
+	rows, err := db.Query(`
+		SELECT d.topic, SUM(s.score_value), d.max_score
+		FROM Score s
+		JOIN appraisal a ON s.appraisal_id = a.ap_id
+		JOIN detail d ON s.detail_id = d.detail_id
+		WHERE a.user_id = ? AND a.ap_id = (
+			SELECT ap_id FROM appraisal WHERE user_id = ? ORDER BY evaluated_at DESC LIMIT 1
+		)
+		GROUP BY d.detail_id, d.topic, d.max_score
+	`, empID, empID)
+	
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var comp CompetencyScore
+			rows.Scan(&comp.Competency, &comp.Score, &comp.FullMark)
+			comp.Score = comp.Score / float64(comp.FullMark) * 5.0 // แปลงเป็นสเกล 5
+			comp.FullMark = 5
+			dashboard.CompetencyScores = append(dashboard.CompetencyScores, comp)
+		}
+	}
+	
+	// ดึงประวัติการประเมินล่าสุด
+	evalRows, err := db.Query(`
+		SELECT 
+			a.evaluated_at,
+			'ผู้ประเมิน' as evaluator,
+			SUM(s.score_value) as total,
+			'' as evaluator_comment,
+			'' as employee_comment
+		FROM appraisal a
+		LEFT JOIN Score s ON a.ap_id = s.appraisal_id
+		WHERE a.user_id = ?
+		GROUP BY a.ap_id
+		ORDER BY a.evaluated_at DESC
+		LIMIT 5
+	`, empID)
+	
+	if err == nil {
+		defer evalRows.Close()
+		for evalRows.Next() {
+			var eval RecentEvaluation
+			var total float64
+			var evaluatorComment, employeeComment sql.NullString
+			evalRows.Scan(&eval.Date, &eval.Evaluator, &total, &evaluatorComment, &employeeComment)
+			eval.Score = total / 20.0 // แปลงเป็นคะแนน 5
+			if evaluatorComment.Valid {
+				eval.EvaluatorComment = evaluatorComment.String
+			}
+			if employeeComment.Valid {
+				eval.EmployeeComment = employeeComment.String
+			}
+			dashboard.RecentEvaluations = append(dashboard.RecentEvaluations, eval)
+		}
+	}
+	
+	c.JSON(200, dashboard)
+}
+
+// getSupervisorDashboard - ดึงข้อมูล Dashboard สำหรับ Supervisor
+func getSupervisorDashboard(c *gin.Context) {
+	username := c.Param("username")
+	
+	// หา emp_id จาก username
+	var empID int
+	err := db.QueryRow(`
+		SELECT emp_id FROM employees e
+		JOIN users u ON e.emp_id = u.emp_id
+		WHERE u.username = ?
+	`, username).Scan(&empID)
+	
+	if err != nil {
+		c.JSON(404, gin.H{"error": "Supervisor not found"})
+		return
+	}
+	
+	dashboard := SupervisorDashboardData{}
+	
+	// นับจำนวนสมาชิกในทีม
+	db.QueryRow("SELECT COUNT(*) FROM employees WHERE manager_id = ?", empID).Scan(&dashboard.TotalMembers)
+	
+	// นับการประเมินที่เสร็จแล้ว
+	db.QueryRow(`
+		SELECT COUNT(DISTINCT a.user_id)
+		FROM appraisal a
+		JOIN employees e ON a.user_id = e.emp_id
+		WHERE e.manager_id = ? AND a.evaluated_at IS NOT NULL
+	`, empID).Scan(&dashboard.Evaluated)
+	
+	dashboard.Pending = dashboard.TotalMembers - dashboard.Evaluated
+	
+	// คำนวณคะแนนเฉลี่ยของทีม
+	var avgScore sql.NullFloat64
+	db.QueryRow(`
+		SELECT AVG(total_score) FROM (
+			SELECT SUM(s.score_value) as total_score
+			FROM Score s
+			JOIN appraisal a ON s.appraisal_id = a.ap_id
+			JOIN employees e ON a.user_id = e.emp_id
+			WHERE e.manager_id = ?
+			GROUP BY s.appraisal_id
+		)
+	`, empID).Scan(&avgScore)
+	
+	if avgScore.Valid {
+		dashboard.AvgTeamScore = avgScore.Float64 / 20.0
+	}
+	
+	// ดึงรายชื่อสมาชิกในทีม
+	memberRows, err := db.Query(`
+		SELECT 
+			e.emp_id,
+			e.first_name || ' ' || e.last_name as name,
+			'พนักงาน' as position,
+			COALESCE(MAX(total.score), 0) as last_score,
+			CASE WHEN MAX(a.evaluated_at) IS NOT NULL THEN 'ประเมินแล้ว' ELSE 'รอการประเมิน' END as status
+		FROM employees e
+		LEFT JOIN appraisal a ON e.emp_id = a.user_id
+		LEFT JOIN (
+			SELECT appraisal_id, SUM(score_value)/20.0 as score
+			FROM Score
+			GROUP BY appraisal_id
+		) total ON a.ap_id = total.appraisal_id
+		WHERE e.manager_id = ?
+		GROUP BY e.emp_id, e.first_name, e.last_name
+	`, empID)
+	
+	if err == nil {
+		defer memberRows.Close()
+		for memberRows.Next() {
+			var member TeamMember
+			memberRows.Scan(&member.ID, &member.Name, &member.Position, &member.LastScore, &member.Status)
+			
+			// TODO: คำนวณ Trend จากประวัติคะแนน
+			if member.LastScore >= 4.0 {
+				member.Trend = "up"
+			} else if member.LastScore < 3.5 {
+				member.Trend = "down"
+			} else {
+				member.Trend = "stable"
+			}
+			
+			dashboard.TeamMembers = append(dashboard.TeamMembers, member)
+			
+			// เพิ่มใน NeedsAttention ถ้าคะแนนต่ำหรือ trend ลง
+			if member.LastScore < 4.0 || member.Trend == "down" {
+				dashboard.NeedsAttention = append(dashboard.NeedsAttention, member)
+			}
+		}
+	}
+	
+	// หา Top Performer
+	if len(dashboard.TeamMembers) > 0 {
+		topPerformer := dashboard.TeamMembers[0]
+		for _, member := range dashboard.TeamMembers {
+			if member.LastScore > topPerformer.LastScore {
+				topPerformer = member
+			}
+		}
+		dashboard.TopPerformer = &topPerformer
+	}
+	
+	// คะแนนเฉลี่ยตามตำแหน่ง (TODO: ใช้ข้อมูลจริงจาก position table)
+	dashboard.ScoresByPosition = []ScoreByPosition{
+		{Position: "พนักงาน", AvgScore: dashboard.AvgTeamScore, Count: dashboard.TotalMembers},
+	}
+	
+	// สถานะการประเมิน
+	dashboard.EvaluationStatus = []EvaluationStatusData{
+		{Name: "ประเมินแล้ว", Value: dashboard.Evaluated},
+		{Name: "รอการประเมิน", Value: dashboard.Pending},
+	}
+	
+	c.JSON(200, dashboard)
+}
+
+// getHRDashboard - ดึงข้อมูล Dashboard สำหรับ HR
+func getHRDashboard(c *gin.Context) {
+	dashboard := HRDashboardData{}
+	
+	// คำนวณคะแนนเฉลี่ยทั้งบริษัท
+	var avgScore sql.NullFloat64
+	db.QueryRow(`
+		SELECT AVG(total_score) FROM (
+			SELECT SUM(s.score_value) as total_score
+			FROM Score s
+			JOIN appraisal a ON s.appraisal_id = a.ap_id
+			GROUP BY s.appraisal_id
+		)
+	`).Scan(&avgScore)
+	
+	if avgScore.Valid {
+		dashboard.AvgScore = avgScore.Float64 / 20.0
+	}
+	
+	// คะแนนตามแผนก
+	deptRows, err := db.Query(`
+		SELECT 
+			COALESCE(e.department, 'ไม่ระบุ') as department,
+			AVG(total.score) as avg_score
+		FROM employees e
+		JOIN appraisal a ON e.emp_id = a.user_id
+		JOIN (
+			SELECT appraisal_id, SUM(score_value)/20.0 as score
+			FROM Score
+			GROUP BY appraisal_id
+		) total ON a.ap_id = total.appraisal_id
+		GROUP BY e.department
+	`)
+	
+	if err == nil {
+		defer deptRows.Close()
+		var bestScore, worstScore float64 = 0, 999
+		for deptRows.Next() {
+			var dept DepartmentScore
+			deptRows.Scan(&dept.Department, &dept.Score)
+			dashboard.DepartmentScores = append(dashboard.DepartmentScores, dept)
+			
+			if dept.Score > bestScore {
+				bestScore = dept.Score
+				dashboard.BestDept = dept.Department
+				dashboard.BestScore = dept.Score
+			}
+			if dept.Score < worstScore {
+				worstScore = dept.Score
+				dashboard.WorstDept = dept.Department
+				dashboard.WorstScore = dept.Score
+			}
+		}
+	}
+	
+	// นับจำนวนการประเมิน
+	db.QueryRow("SELECT COUNT(DISTINCT user_id) FROM appraisal").Scan(&dashboard.EvaluatedCount)
+	
+	var totalEmployees int
+	db.QueryRow("SELECT COUNT(*) FROM employees").Scan(&totalEmployees)
+	dashboard.NotEvaluatedCount = totalEmployees - dashboard.EvaluatedCount
+	
+	c.JSON(200, dashboard)
 }
 
 func signupHandler(c *gin.Context) {
@@ -946,6 +1316,9 @@ func main() {
 	api.GET("/evaluation/user/:username", getEvaluationByUsername)
 	api.GET("/profile/:username", getProfile)
 	api.PUT("/profile/:username", updateProfile)
+	api.GET("/dashboard/employee/:username", getEmployeeDashboard)
+	api.GET("/dashboard/supervisor/:username", getSupervisorDashboard)
+	api.GET("/dashboard/hr", getHRDashboard)
 	// api.GET("/average-score", getAverageScore)
 	// api.GET("/average-score", getMaxScore)
 	// api.GET("/average-score", getMinScore)
