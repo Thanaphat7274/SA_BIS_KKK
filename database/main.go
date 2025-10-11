@@ -43,6 +43,11 @@ type SubDetail struct {
 	SubDetailID    int    `json:"subdetail_id"`
 	SubDetailTopic string `json:"subdetail_topic"`
 	MaxScore       int    `json:"max_score,omitempty"`
+	Score1Desc     string `json:"score_1_desc,omitempty"`
+	Score2Desc     string `json:"score_2_desc,omitempty"`
+	Score3Desc     string `json:"score_3_desc,omitempty"`
+	Score4Desc     string `json:"score_4_desc,omitempty"`
+	Score5Desc     string `json:"score_5_desc,omitempty"`
 }
 
 type EvaluationSection struct {
@@ -67,21 +72,21 @@ type EvaluationResponse struct {
 }
 
 type ProfileData struct {
-	EmpID                 int    `json:"empId"`
-	FullName              string `json:"fullName"`
-	Email                 string `json:"email"`
-	Phone                 string `json:"phone"`
-	Department            string `json:"department"`
-	Position              string `json:"position"`
-	EmployeeCode          string `json:"employeeId"`
-	JoinDate              string `json:"joinDate"`
-	Supervisor            string `json:"supervisor"`
-	Address               string `json:"address"`
-	EmergencyContact      string `json:"emergencyContact"`
-	EmergencyName         string `json:"emergencyName"`
-	LastEvaluation        string `json:"lastEvaluation"`
-	OverallScore          float64 `json:"overallScore"`
-	EvaluationsCount      int    `json:"evaluationsCount"`
+	EmpID            int     `json:"empId"`
+	FullName         string  `json:"fullName"`
+	Email            string  `json:"email"`
+	Phone            string  `json:"phone"`
+	Department       string  `json:"department"`
+	Position         string  `json:"position"`
+	EmployeeCode     string  `json:"employeeId"`
+	JoinDate         string  `json:"joinDate"`
+	Supervisor       string  `json:"supervisor"`
+	Address          string  `json:"address"`
+	EmergencyContact string  `json:"emergencyContact"`
+	EmergencyName    string  `json:"emergencyName"`
+	LastEvaluation   string  `json:"lastEvaluation"`
+	OverallScore     float64 `json:"overallScore"`
+	EvaluationsCount int     `json:"evaluationsCount"`
 }
 
 var db *sql.DB
@@ -213,6 +218,7 @@ func getEmployees(c *gin.Context) {
 			e.first_name,
 			e.last_name,
 			e.hire_date,
+			e.pos_id,
 			u.username
 		FROM employees e
 		LEFT JOIN users u ON e.emp_id = u.emp_id
@@ -229,9 +235,10 @@ func getEmployees(c *gin.Context) {
 		var empID int
 		var firstName, lastName string
 		var hireDate sql.NullString
+		var posID sql.NullInt64
 		var username sql.NullString
 
-		err := rows.Scan(&empID, &firstName, &lastName, &hireDate, &username)
+		err := rows.Scan(&empID, &firstName, &lastName, &hireDate, &posID, &username)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to scan employee data"})
 			return
@@ -249,6 +256,12 @@ func getEmployees(c *gin.Context) {
 			employee["hire_date"] = nil
 		}
 
+		if posID.Valid {
+			employee["position_id"] = int(posID.Int64)
+		} else {
+			employee["position_id"] = nil
+		}
+
 		if username.Valid {
 			employee["username"] = username.String
 		} else {
@@ -263,6 +276,46 @@ func getEmployees(c *gin.Context) {
 	}
 
 	c.JSON(200, employees)
+}
+
+func getPositions(c *gin.Context) {
+	rows, err := db.Query(`
+		SELECT 
+			position_id,
+			position_name
+		FROM position
+		ORDER BY position_id
+	`)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to fetch positions"})
+		return
+	}
+	defer rows.Close()
+
+	var positions []map[string]interface{}
+	for rows.Next() {
+		var positionID int
+		var positionName string
+
+		err := rows.Scan(&positionID, &positionName)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to scan position data"})
+			return
+		}
+
+		position := map[string]interface{}{
+			"position_id":   positionID,
+			"position_name": positionName,
+		}
+
+		positions = append(positions, position)
+	}
+
+	if positions == nil {
+		positions = []map[string]interface{}{}
+	}
+
+	c.JSON(200, positions)
 }
 
 func saveScore(c *gin.Context) {
@@ -285,12 +338,12 @@ func saveScore(c *gin.Context) {
 
 func getEvaluationByID(c *gin.Context) {
 	appraisalID := c.Param("id")
-	
+
 	var evaluation EvaluationResponse
 	var userID int
 	var year int
 	var evaluatedAt string
-	
+
 	// ดึงข้อมูลการประเมินและพนักงาน
 	err := db.QueryRow(`
 		SELECT 
@@ -302,35 +355,35 @@ func getEvaluationByID(c *gin.Context) {
 		FROM appraisal a
 		JOIN employees e ON a.user_id = e.emp_id
 		WHERE a.ap_id = ?
-	`, appraisalID).Scan(&userID, &year, &evaluatedAt, &evaluation.EmployeeName, 
+	`, appraisalID).Scan(&userID, &year, &evaluatedAt, &evaluation.EmployeeName,
 		&evaluation.EmployeeCode)
-	
+
 	if err != nil {
 		c.JSON(404, gin.H{"error": "Evaluation not found"})
 		return
 	}
-	
+
 	evaluation.EvaluationDate = evaluatedAt
-	evaluation.Position = "Developer" // TODO: ดึงจาก position table
+	evaluation.Position = "Developer"  // TODO: ดึงจาก position table
 	evaluation.Evaluator = "ผู้จัดการ" // TODO: ดึงข้อมูลผู้ประเมินจริง
-	
+
 	// ดึงคะแนนแต่ละส่วน
 	sections := map[int]*EvaluationSection{
 		1: &evaluation.Attendance,
 		2: &evaluation.Performance,
 		3: &evaluation.Behavior,
 	}
-	
+
 	for detailID, section := range sections {
 		// ดึง max_score และ details
 		var maxScore int
 		var topic string
 		db.QueryRow("SELECT max_score, topic FROM detail WHERE detail_id = ?", detailID).Scan(&maxScore, &topic)
-		
+
 		section.MaxScore = maxScore
 		section.Weight = maxScore
 		section.Details = topic
-		
+
 		// คำนวณคะแนนรวมจาก Score table
 		var totalScore sql.NullFloat64
 		db.QueryRow(`
@@ -338,29 +391,29 @@ func getEvaluationByID(c *gin.Context) {
 			FROM Score 
 			WHERE appraisal_id = ? AND detail_id = ?
 		`, appraisalID, detailID).Scan(&totalScore)
-		
+
 		if totalScore.Valid {
 			section.Score = totalScore.Float64
 			section.WeightedScore = totalScore.Float64
 		}
 	}
-	
+
 	// ดึงความคิดเห็น (ถ้ามี table comment)
 	evaluation.EvaluatorComment = "พนักงานทำงานได้ดี"
 	evaluation.EmployeeComment = "ขอบคุณครับ"
-	
+
 	c.JSON(200, evaluation)
 }
 
 func getLatestEvaluation(c *gin.Context) {
 	var latestAppraisalID int
 	err := db.QueryRow("SELECT ap_id FROM appraisal ORDER BY evaluated_at DESC LIMIT 1").Scan(&latestAppraisalID)
-	
+
 	if err != nil {
 		c.JSON(404, gin.H{"error": "No evaluation found"})
 		return
 	}
-	
+
 	// เรียกใช้ฟังก์ชัน getEvaluationByID โดยตั้งค่า param
 	c.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", latestAppraisalID)}}
 	getEvaluationByID(c)
@@ -368,16 +421,16 @@ func getLatestEvaluation(c *gin.Context) {
 
 func getEvaluationByUsername(c *gin.Context) {
 	username := c.Param("username")
-	
+
 	// หา user_id จาก username
 	var userID int
 	err := db.QueryRow("SELECT emp_id FROM users WHERE username = ?", username).Scan(&userID)
-	
+
 	if err != nil {
 		c.JSON(404, gin.H{"error": "User not found"})
 		return
 	}
-	
+
 	// หา appraisal_id ล่าสุดของ user นี้
 	var latestAppraisalID int
 	err = db.QueryRow(`
@@ -387,24 +440,64 @@ func getEvaluationByUsername(c *gin.Context) {
 		ORDER BY evaluated_at DESC 
 		LIMIT 1
 	`, userID).Scan(&latestAppraisalID)
-	
+
 	if err != nil {
 		c.JSON(404, gin.H{"error": "No evaluation found for this user"})
 		return
 	}
-	
+
 	// เรียกใช้ฟังก์ชัน getEvaluationByID
 	c.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", latestAppraisalID)}}
 	getEvaluationByID(c)
 }
 
 func getDetails(c *gin.Context) {
-	rows, err := db.Query(`
-		SELECT d.detail_id, d.topic, COALESCE(d.max_score, 0) as max_score, sd.subdetail_id, sd.subdetail_topic
-		FROM detail d
-		LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
-		ORDER BY d.detail_id, sd.subdetail_id
-	`)
+	positionID := c.Query("position_id")
+
+	var query string
+	var rows *sql.Rows
+	var err error
+
+	if positionID != "" {
+		// ถ้ามี position_id ให้กรองตาม position
+		query = `
+			SELECT 
+				d.detail_id, 
+				d.topic, 
+				COALESCE(d.max_score, 0) as max_score, 
+				sd.subdetail_id, 
+				sd.subdetail_topic,
+				sd.score_1_desc,
+				sd.score_2_desc,
+				sd.score_3_desc,
+				sd.score_4_desc,
+				sd.score_5_desc
+			FROM detail d
+			LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
+			WHERE d.position_id = ?
+			ORDER BY d.detail_id, sd.subdetail_id
+		`
+		rows, err = db.Query(query, positionID)
+	} else {
+		// ถ้าไม่มี position_id ให้แสดงทั้งหมด
+		query = `
+			SELECT 
+				d.detail_id, 
+				d.topic, 
+				COALESCE(d.max_score, 0) as max_score, 
+				sd.subdetail_id, 
+				sd.subdetail_topic,
+				sd.score_1_desc,
+				sd.score_2_desc,
+				sd.score_3_desc,
+				sd.score_4_desc,
+				sd.score_5_desc
+			FROM detail d
+			LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
+			ORDER BY d.detail_id, sd.subdetail_id
+		`
+		rows, err = db.Query(query)
+	}
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to fetch details"})
 		return
@@ -419,8 +512,14 @@ func getDetails(c *gin.Context) {
 		var maxScore int
 		var subDetailID sql.NullInt64
 		var subDetailTopic sql.NullString
+		var score1Desc sql.NullString
+		var score2Desc sql.NullString
+		var score3Desc sql.NullString
+		var score4Desc sql.NullString
+		var score5Desc sql.NullString
 
-		err := rows.Scan(&detailID, &topic, &maxScore, &subDetailID, &subDetailTopic)
+		err := rows.Scan(&detailID, &topic, &maxScore, &subDetailID, &subDetailTopic,
+			&score1Desc, &score2Desc, &score3Desc, &score4Desc, &score5Desc)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to scan data"})
 			return
@@ -443,6 +542,24 @@ func getDetails(c *gin.Context) {
 				SubDetailID:    int(subDetailID.Int64),
 				SubDetailTopic: subDetailTopic.String,
 			}
+
+			// เพิ่ม score descriptions
+			if score1Desc.Valid {
+				subDetail.Score1Desc = score1Desc.String
+			}
+			if score2Desc.Valid {
+				subDetail.Score2Desc = score2Desc.String
+			}
+			if score3Desc.Valid {
+				subDetail.Score3Desc = score3Desc.String
+			}
+			if score4Desc.Valid {
+				subDetail.Score4Desc = score4Desc.String
+			}
+			if score5Desc.Valid {
+				subDetail.Score5Desc = score5Desc.String
+			}
+
 			detailsMap[detailID].SubDetails = append(detailsMap[detailID].SubDetails, subDetail)
 		}
 	}
@@ -517,9 +634,12 @@ func addSubDetail(c *gin.Context) {
 		return
 	}
 
-	// เพิ่ม subdetail ใหม่
-	_, err = db.Exec("INSERT INTO SubDetail (detail_id, subdetail_id, subdetail_topic) VALUES (?, ?, ?)",
-		subDetail.DetailID, nextSubDetailID, subDetail.SubDetailTopic)
+	// เพิ่ม subdetail ใหม่ พร้อม score descriptions
+	_, err = db.Exec(`INSERT INTO SubDetail 
+		(detail_id, subdetail_id, subdetail_topic, score_1_desc, score_2_desc, score_3_desc, score_4_desc, score_5_desc) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		subDetail.DetailID, nextSubDetailID, subDetail.SubDetailTopic,
+		subDetail.Score1Desc, subDetail.Score2Desc, subDetail.Score3Desc, subDetail.Score4Desc, subDetail.Score5Desc)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to add subdetail"})
 		return
@@ -528,17 +648,114 @@ func addSubDetail(c *gin.Context) {
 	c.JSON(201, gin.H{"message": "SubDetail added successfully"})
 }
 
+// updateSubDetail - แก้ไข SubDetail
+func updateSubDetail(c *gin.Context) {
+	subdetailID := c.Param("id")
+
+	var subDetail SubDetail
+	if err := c.ShouldBindJSON(&subDetail); err != nil {
+		c.JSON(400, gin.H{"error": "Bad request"})
+		return
+	}
+
+	// อัพเดท subdetail
+	_, err := db.Exec(`UPDATE SubDetail 
+		SET subdetail_topic = ?, 
+			score_1_desc = ?, 
+			score_2_desc = ?, 
+			score_3_desc = ?, 
+			score_4_desc = ?, 
+			score_5_desc = ?
+		WHERE detail_id = ? AND subdetail_id = ?`,
+		subDetail.SubDetailTopic,
+		subDetail.Score1Desc, subDetail.Score2Desc, subDetail.Score3Desc,
+		subDetail.Score4Desc, subDetail.Score5Desc,
+		subDetail.DetailID, subdetailID)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to update subdetail"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "SubDetail updated successfully"})
+}
+
+// deleteSubDetail - ลบ SubDetail
+func deleteSubDetail(c *gin.Context) {
+	subdetailID := c.Param("id")
+	detailID := c.Query("detail_id")
+
+	if detailID == "" {
+		c.JSON(400, gin.H{"error": "detail_id is required"})
+		return
+	}
+
+	// ลบ subdetail
+	_, err := db.Exec("DELETE FROM SubDetail WHERE detail_id = ? AND subdetail_id = ?",
+		detailID, subdetailID)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to delete subdetail"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "SubDetail deleted successfully"})
+}
+
+// updateDetail - แก้ไข Detail
+func updateDetail(c *gin.Context) {
+	detailID := c.Param("id")
+
+	var detail Detail
+	if err := c.ShouldBindJSON(&detail); err != nil {
+		c.JSON(400, gin.H{"error": "Bad request"})
+		return
+	}
+
+	// อัพเดท detail
+	_, err := db.Exec("UPDATE Detail SET topic = ?, max_score = ? WHERE detail_id = ?",
+		detail.Topic, detail.MaxScore, detailID)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to update detail"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Detail updated successfully"})
+}
+
+// deleteDetail - ลบ Detail (พร้อม SubDetails ทั้งหมด)
+func deleteDetail(c *gin.Context) {
+	detailID := c.Param("id")
+
+	// ลบ subdetails ก่อน
+	_, err := db.Exec("DELETE FROM SubDetail WHERE detail_id = ?", detailID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to delete subdetails"})
+		return
+	}
+
+	// ลบ detail
+	_, err = db.Exec("DELETE FROM Detail WHERE detail_id = ?", detailID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to delete detail"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Detail and all subdetails deleted successfully"})
+}
+
 // getProfile - ดึงข้อมูล Profile ของพนักงานตาม username
 func getProfile(c *gin.Context) {
 	username := c.Param("username")
-	
+
 	var profile ProfileData
 	var empID int
 	var firstName, lastName sql.NullString
 	var email, phone, address, emergencyName, emergencyPhone, department sql.NullString
 	var hireDate sql.NullString
 	var managerID sql.NullInt64
-	
+
 	// ดึงข้อมูลพนักงาน
 	err := db.QueryRow(`
 		SELECT 
@@ -558,12 +775,12 @@ func getProfile(c *gin.Context) {
 		WHERE u.username = ?
 	`, username).Scan(&empID, &firstName, &lastName, &email, &phone, &address,
 		&emergencyName, &emergencyPhone, &department, &hireDate, &managerID)
-	
+
 	if err != nil {
 		c.JSON(404, gin.H{"error": "User not found"})
 		return
 	}
-	
+
 	// กรอกข้อมูล Profile
 	profile.EmpID = empID
 	profile.FullName = firstName.String + " " + lastName.String
@@ -576,7 +793,7 @@ func getProfile(c *gin.Context) {
 	profile.Address = address.String
 	profile.EmergencyContact = emergencyPhone.String
 	profile.EmergencyName = emergencyName.String
-	
+
 	// ดึงชื่อ Supervisor
 	if managerID.Valid {
 		var supervisorName string
@@ -587,7 +804,7 @@ func getProfile(c *gin.Context) {
 		`, managerID.Int64).Scan(&supervisorName)
 		profile.Supervisor = supervisorName
 	}
-	
+
 	// ดึงข้อมูลการประเมิน
 	var lastEval sql.NullString
 	var evalCount int
@@ -598,12 +815,12 @@ func getProfile(c *gin.Context) {
 		FROM appraisal
 		WHERE user_id = ?
 	`, empID).Scan(&lastEval, &evalCount)
-	
+
 	if lastEval.Valid {
 		profile.LastEvaluation = lastEval.String
 	}
 	profile.EvaluationsCount = evalCount
-	
+
 	// คำนวณคะแนนเฉลี่ย
 	var avgScore sql.NullFloat64
 	db.QueryRow(`
@@ -615,31 +832,31 @@ func getProfile(c *gin.Context) {
 			GROUP BY s.appraisal_id
 		)
 	`, empID).Scan(&avgScore)
-	
+
 	if avgScore.Valid {
 		profile.OverallScore = avgScore.Float64 / 20.0 // แปลงเป็นคะแนน 5
 	}
-	
+
 	c.JSON(200, profile)
 }
 
 // updateProfile - อัปเดตข้อมูล Profile
 func updateProfile(c *gin.Context) {
 	username := c.Param("username")
-	
+
 	var updateData struct {
-		Email                 string `json:"email"`
-		Phone                 string `json:"phone"`
-		Address               string `json:"address"`
-		EmergencyName         string `json:"emergencyName"`
-		EmergencyContact      string `json:"emergencyContact"`
+		Email            string `json:"email"`
+		Phone            string `json:"phone"`
+		Address          string `json:"address"`
+		EmergencyName    string `json:"emergencyName"`
+		EmergencyContact string `json:"emergencyContact"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&updateData); err != nil {
 		c.JSON(400, gin.H{"error": "Bad request"})
 		return
 	}
-	
+
 	// หา emp_id จาก username
 	var empID int
 	err := db.QueryRow("SELECT emp_id FROM users WHERE username = ?", username).Scan(&empID)
@@ -647,7 +864,7 @@ func updateProfile(c *gin.Context) {
 		c.JSON(404, gin.H{"error": "User not found"})
 		return
 	}
-	
+
 	// อัปเดตข้อมูล
 	_, err = db.Exec(`
 		UPDATE employees 
@@ -659,12 +876,12 @@ func updateProfile(c *gin.Context) {
 		WHERE emp_id = ?
 	`, updateData.Email, updateData.Phone, updateData.Address,
 		updateData.EmergencyName, updateData.EmergencyContact, empID)
-	
+
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to update profile"})
 		return
 	}
-	
+
 	c.JSON(200, gin.H{"message": "Profile updated successfully"})
 }
 
@@ -708,7 +925,6 @@ func main() {
 
 	r := gin.Default()
 
-	
 	r.Use(cors.Default())
 
 	api := r.Group("/api")
@@ -717,10 +933,15 @@ func main() {
 	api.POST("/signup", signupHandler)
 	api.POST("/addEmployee", addEmployee)
 	api.GET("/employees", getEmployees)
+	api.GET("/positions", getPositions)
 	api.POST("/saveScore", saveScore)
 	api.GET("/getDetails", getDetails)
 	api.POST("/addDetail", addDetail)
+	api.PUT("/updateDetail/:id", updateDetail)
+	api.DELETE("/deleteDetail/:id", deleteDetail)
 	api.POST("/addSubDetail", addSubDetail)
+	api.PUT("/updateSubDetail/:id", updateSubDetail)
+	api.DELETE("/deleteSubDetail/:id", deleteSubDetail)
 	api.GET("/evaluation/latest", getLatestEvaluation)
 	api.GET("/evaluation/user/:username", getEvaluationByUsername)
 	api.GET("/profile/:username", getProfile)

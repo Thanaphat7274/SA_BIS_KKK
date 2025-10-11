@@ -20,11 +20,13 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                 // ดึงข้อมูลพนักงาน
                 const empResponse = await fetch('http://localhost:8080/api/employees'); // เปลี่ยน URL ตาม API ของคุณ
                 const empData = await empResponse.json();
+                console.log('Employees data:', empData); // Debug
                 setEmployees(empData);
                 
                 // ดึงข้อมูลตำแหน่ง
                 const posResponse = await fetch('http://localhost:8080/api/positions'); // เปลี่ยน URL ตาม API ของคุณ
                 const posData = await posResponse.json();
+                console.log('Positions data:', posData); // Debug
                 setPositions(posData);
                 
                 setLoading(false);
@@ -53,9 +55,9 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
         else {
             setWarningMessage("");
             const selectedEmployeeData = employees.find(
-                emp => emp.id === sel_emp);
+                emp => emp.emp_id === parseInt(sel_emp));
             const selectedPositionData = positions.find(
-                pos => pos.id === sel_position);
+                pos => pos.position_id === parseInt(sel_position));
             navigate('/evaluation', { 
                 state: { employee: selectedEmployeeData, 
                         position: selectedPositionData } 
@@ -76,12 +78,19 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
         );
     }
 
-    const selectedEmployee = employees.find(emp => emp.id === sel_emp);
-    const selectedPosition = positions.find(pos => pos.id === sel_position);
+    const selectedEmployee = employees.find(emp => emp.emp_id === parseInt(sel_emp));
+    const selectedPosition = positions.find(pos => pos.position_id === parseInt(sel_position));
+    
+    console.log('sel_position:', sel_position, 'type:', typeof sel_position); // Debug
+    console.log('Employees:', employees); // Debug
+    console.log('Filtered:', employees.filter(emp => {
+        console.log(`Employee ${emp.first_name}: position_id=${emp.position_id} (${typeof emp.position_id})`);
+        return emp.position_id === parseInt(sel_position);
+    })); // Debug
     
     // กรองพนักงานตามตำแหน่งที่เลือก
     const filteredEmployees = sel_position 
-        ? employees.filter(emp => emp.position_id === sel_position)
+        ? employees.filter(emp => emp.position_id === parseInt(sel_position))
         : [];
 
     return (
@@ -120,8 +129,8 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                             >
                                 <option value="" disabled>-- เลือกตำแหน่งงาน --</option>
                                 {positions.map((pos) => (
-                                    <option key={pos.id} value={pos.id}>
-                                        {pos.title}
+                                    <option key={pos.position_id} value={pos.position_id}>
+                                        {pos.position_name}
                                     </option>
                                 ))}
                             </select>
@@ -158,8 +167,8 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                                     {sel_position ? '-- เลือกพนักงาน --' : '-- กรุณาเลือกตำแหน่งก่อน --'}
                                 </option>
                                 {filteredEmployees.map((emp) => (
-                                    <option key={emp.id} value={emp.id}>
-                                        {emp.name} ({emp.employeeCode})
+                                    <option key={emp.emp_id} value={emp.emp_id}>
+                                        {emp.first_name} {emp.last_name} ({emp.username || 'N/A'})
                                     </option>
                                 ))}
                             </select>
@@ -186,10 +195,10 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                                 <div className="mt-3 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
                                     <p className="text-sm text-gray-600">พนักงานที่เลือก:</p>
                                     <p className="text-lg font-semibold text-blue-700">
-                                        {selectedEmployee.name}
+                                        {selectedEmployee.first_name} {selectedEmployee.last_name}
                                     </p>
                                     <p className="text-sm text-gray-500">
-                                        รหัส: {selectedEmployee.employeeCode}
+                                        Username: {selectedEmployee.username || 'N/A'}
                                     </p>
                                 </div>
                             )}

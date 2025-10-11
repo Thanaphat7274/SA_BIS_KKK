@@ -48,10 +48,15 @@ const ManageEvaluationCriteria = () => {
   // ดึงข้อมูล positions
   const fetchPositions = async () => {
     try {
+      console.log('Fetching positions...');
       const response = await fetch('http://localhost:8080/api/positions');
+      console.log('Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('Positions data:', data);
         setPositions(data || []);
+      } else {
+        console.error('Failed to fetch positions:', response.status);
       }
     } catch (error) {
       console.error('Error fetching positions:', error);
@@ -150,7 +155,7 @@ const ManageEvaluationCriteria = () => {
       });
 
       if (response.ok) {
-        setMessage('เพิ่มรายละเอียดย่อยสำเร็จ');
+        setMessage('เพิ่มหัวข้อย่อยสำเร็จ');
         setNewSubDetail({ 
           detailId: '', 
           subdetailTopic: '',
@@ -167,7 +172,7 @@ const ManageEvaluationCriteria = () => {
       }
     } catch (error) {
       console.error('Error adding subdetail:', error);
-      setMessage('ไม่สามารถเพิ่มรายละเอียดย่อยได้');
+      setMessage('ไม่สามารถเพิ่มหัวข้อย่อยได้');
     } finally {
       setLoading(false);
     }
@@ -218,7 +223,7 @@ const ManageEvaluationCriteria = () => {
 
   // ลบ Detail
   const handleDeleteDetail = async (detailId) => {
-    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบหัวข้อนี้? (รายละเอียดย่อยทั้งหมดจะถูกลบด้วย)')) {
+    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบหัวข้อนี้? (หัวข้อย่อยทั้งหมดจะถูกลบด้วย)')) {
       return;
     }
 
@@ -264,7 +269,7 @@ const ManageEvaluationCriteria = () => {
       });
 
       if (response.ok) {
-        setMessage('แก้ไขรายละเอียดย่อยสำเร็จ');
+        setMessage('แก้ไขหัวข้อย่อยสำเร็จ');
         setEditingSubDetail(null);
         fetchDetails();
       } else {
@@ -273,7 +278,7 @@ const ManageEvaluationCriteria = () => {
       }
     } catch (error) {
       console.error('Error updating subdetail:', error);
-      setMessage('ไม่สามารถแก้ไขรายละเอียดย่อยได้');
+      setMessage('ไม่สามารถแก้ไขหัวข้อย่อยได้');
     } finally {
       setLoading(false);
     }
@@ -281,7 +286,7 @@ const ManageEvaluationCriteria = () => {
 
   // ลบ SubDetail
   const handleDeleteSubDetail = async (subdetailId, detailId) => {
-    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายละเอียดย่อยนี้?')) {
+    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบหัวข้อย่อยนี้?')) {
       return;
     }
 
@@ -292,7 +297,7 @@ const ManageEvaluationCriteria = () => {
       });
 
       if (response.ok) {
-        setMessage('ลบรายละเอียดย่อยสำเร็จ');
+        setMessage('ลบหัวข้อย่อยสำเร็จ');
         fetchDetails();
       } else {
         const error = await response.json();
@@ -300,7 +305,7 @@ const ManageEvaluationCriteria = () => {
       }
     } catch (error) {
       console.error('Error deleting subdetail:', error);
-      setMessage('ไม่สามารถลบรายละเอียดย่อยได้');
+      setMessage('ไม่สามารถลบหัวข้อย่อยได้');
     } finally {
       setLoading(false);
     }
@@ -317,7 +322,7 @@ const ManageEvaluationCriteria = () => {
                 จัดการเกณฑ์การประเมิน
               </h1>
               <p className="text-gray-600">
-                เพิ่ม/แก้ไข หัวข้อประเมินและรายละเอียดย่อย
+                เพิ่ม/แก้ไข หัวข้อประเมินและหัวข้อย่อย
               </p>
             </div>
             <button
@@ -346,10 +351,19 @@ const ManageEvaluationCriteria = () => {
           <select
             value={selectedPosition}
             onChange={(e) => {
+              console.log('Position changed:', e.target.value);
               setSelectedPosition(e.target.value);
               setMessage('');
               setNewDetail({ topic: '', maxScore: '' });
-              setNewSubDetail({ detailId: '', subdetailTopic: '' });
+              setNewSubDetail({ 
+                detailId: '', 
+                subdetailTopic: '',
+                score1Desc: '',
+                score2Desc: '',
+                score3Desc: '',
+                score4Desc: '',
+                score5Desc: ''
+              });
             }}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
           >
@@ -429,7 +443,7 @@ const ManageEvaluationCriteria = () => {
 
           {/* ฟอร์มเพิ่ม SubDetail */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">เพิ่มรายละเอียดย่อย</h2>
+            <h2 className="text-xl font-semibold mb-4">เพิ่มหัวข้อย่อย</h2>
             <form onSubmit={handleAddSubDetail}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -450,18 +464,18 @@ const ManageEvaluationCriteria = () => {
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  รายละเอียดย่อย
+                  หัวข้อย่อย
                 </label>
-                <textarea
+                <input
                   value={newSubDetail.subdetailTopic}
                   onChange={(e) => setNewSubDetail({ ...newSubDetail, subdetailTopic: e.target.value })}
-                  placeholder="อธิบายรายละเอียดของเกณฑ์การประเมิน"
+                  placeholder="หัวข้อของเกณฑ์การประเมิน"
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              {/* ช่องกรอกรายละเอียดการให้คะแนน 5 ระดับ */}
+              {/* ช่องกรอกหัวข้อการให้คะแนน 5 ระดับ */}
               <div className="mb-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
                 <h3 className="text-md font-semibold text-gray-700 mb-3">
                   กำหนดเกณฑ์การให้คะแนน (1-5 คะแนน)
@@ -473,9 +487,9 @@ const ManageEvaluationCriteria = () => {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      1 คะแนน - ไม่ผ่านเกณฑ์
+                      ระดับ 1 - ไม่ผ่านเกณฑ์
                     </label>
-                    <input
+                    <textarea
                       type="text"
                       value={newSubDetail.score1Desc}
                       onChange={(e) => setNewSubDetail({ ...newSubDetail, score1Desc: e.target.value })}
@@ -486,9 +500,9 @@ const ManageEvaluationCriteria = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      2 คะแนน - ต่ำกว่าเกณฑ์
+                      ระดับ 2 - ต่ำกว่าเกณฑ์
                     </label>
-                    <input
+                    <textarea
                       type="text"
                       value={newSubDetail.score2Desc}
                       onChange={(e) => setNewSubDetail({ ...newSubDetail, score2Desc: e.target.value })}
@@ -499,9 +513,9 @@ const ManageEvaluationCriteria = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      3 คะแนน - ตามเกณฑ์
+                      ระดับ 3 - ตามเกณฑ์
                     </label>
-                    <input
+                    <textarea
                       type="text"
                       value={newSubDetail.score3Desc}
                       onChange={(e) => setNewSubDetail({ ...newSubDetail, score3Desc: e.target.value })}
@@ -512,9 +526,9 @@ const ManageEvaluationCriteria = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      4 คะแนน - ดีกว่าเกณฑ์
+                      ระดับ 4 - ดีกว่าเกณฑ์
                     </label>
-                    <input
+                    <textarea
                       type="text"
                       value={newSubDetail.score4Desc}
                       onChange={(e) => setNewSubDetail({ ...newSubDetail, score4Desc: e.target.value })}
@@ -525,9 +539,9 @@ const ManageEvaluationCriteria = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      5 คะแนน - เยี่ยม
+                      ระดับ 5 - เยี่ยม
                     </label>
-                    <input
+                    <textarea
                       type="text"
                       value={newSubDetail.score5Desc}
                       onChange={(e) => setNewSubDetail({ ...newSubDetail, score5Desc: e.target.value })}
@@ -707,53 +721,53 @@ const ManageEvaluationCriteria = () => {
                                 <h4 className="text-sm font-semibold text-gray-700 mb-2">เกณฑ์การให้คะแนน</h4>
                                 <div className="space-y-2">
                                   <div>
-                                    <label className="block text-xs font-medium text-red-600 mb-1">1 คะแนน</label>
-                                    <input
+                                    <label className="block text-xs font-medium text-red-600 mb-1">ระดับ 1</label>
+                                    <textarea
                                       type="text"
                                       defaultValue={sub.score_1_desc}
                                       id={`edit-score1-${sub.subdetail_id}`}
                                       className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
-                                      placeholder="เกณฑ์สำหรับ 1 คะแนน"
+                                      placeholder="เกณฑ์สำหรับระดับ 1"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-medium text-orange-600 mb-1">2 คะแนน</label>
-                                    <input
+                                    <label className="block text-xs font-medium text-orange-600 mb-1">ระดับ 2</label>
+                                    <textarea
                                       type="text"
                                       defaultValue={sub.score_2_desc}
                                       id={`edit-score2-${sub.subdetail_id}`}
                                       className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
-                                      placeholder="เกณฑ์สำหรับ 2 คะแนน"
+                                      placeholder="เกณฑ์สำหรับระดับ 2"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-medium text-yellow-600 mb-1">3 คะแนน</label>
-                                    <input
+                                    <label className="block text-xs font-medium text-yellow-600 mb-1">ระดับ 3</label>
+                                    <textarea
                                       type="text"
                                       defaultValue={sub.score_3_desc}
                                       id={`edit-score3-${sub.subdetail_id}`}
                                       className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
-                                      placeholder="เกณฑ์สำหรับ 3 คะแนน"
+                                      placeholder="เกณฑ์สำหรับระดับ 3"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-medium text-green-600 mb-1">4 คะแนน</label>
-                                    <input
+                                    <label className="block text-xs font-medium text-green-600 mb-1">ระดับ 4</label>
+                                    <textarea
                                       type="text"
                                       defaultValue={sub.score_4_desc}
                                       id={`edit-score4-${sub.subdetail_id}`}
                                       className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
-                                      placeholder="เกณฑ์สำหรับ 4 คะแนน"
+                                      placeholder="เกณฑ์สำหรับระดับ 4"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-medium text-blue-600 mb-1">5 คะแนน</label>
-                                    <input
+                                    <label className="block text-xs font-medium text-blue-600 mb-1">ระดับ 5</label>
+                                    <textarea
                                       type="text"
                                       defaultValue={sub.score_5_desc}
                                       id={`edit-score5-${sub.subdetail_id}`}
                                       className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
-                                      placeholder="เกณฑ์สำหรับ 5 คะแนน"
+                                      placeholder="เกณฑ์สำหรับระดับ 5"
                                     />
                                   </div>
                                 </div>

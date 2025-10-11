@@ -9,7 +9,7 @@ import EmployeeList from "./EmployeeList";
 import EvaluationResult from "../components/EvaluationResult";
 const KPIPage = () => {
   const [activepage, setActivepage] = useState('dashboard');
-  const userRole = localStorage.getItem("role") || "emp";
+  const userRole = localStorage.getItem("role") || "supervisor";
   const userName = localStorage.getItem("username") || "user";
   const userFullName = localStorage.getItem("name") || "Fullname";
   

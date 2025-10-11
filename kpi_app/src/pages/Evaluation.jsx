@@ -1,15 +1,15 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import Form_3 from '../components/Form_3';
+import EvaluationForm from '../components/EvaluationForm';
 
 const Evaluation = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // รับค่าที่ส่งมาจากหน้า Selectsepy หรือใช้ค่า default
+  // รับค่าที่ส่งมาจากหน้า Selectsepy
   const { employee, position, appraisalId } = location.state || {};
-  const defaultEmployee = { name: 'นายทนงชัย' };
-  const defaultPosition = { title: 'พนักงาน' };
+  const defaultEmployee = { first_name: 'ไม่ระบุ', last_name: '' };
+  const defaultPosition = { title: 'ไม่ระบุ' };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -22,7 +22,7 @@ const Evaluation = () => {
                 การประเมินผลการปฏิบัติงาน
               </h1>
               <p className="text-gray-600">
-                พนักงาน: {employee?.name || defaultEmployee.name} | 
+                พนักงาน: {employee?.first_name || defaultEmployee.first_name} {employee?.last_name || defaultEmployee.last_name} | 
                 ตำแหน่ง: {position?.title || defaultPosition.title}
               </p>
             </div>
@@ -38,7 +38,11 @@ const Evaluation = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Form_3 appraisalId={appraisalId || 1} />
+        <EvaluationForm 
+          employee={employee} 
+          position={position}
+          expectedScore={5}
+        />
       </div>
     </div>
   );
