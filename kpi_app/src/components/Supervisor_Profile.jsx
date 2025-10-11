@@ -1,42 +1,113 @@
 import React, { useState } from "react";
 import { UserCircleIcon, EnvelopeIcon, PhoneIcon, BuildingOfficeIcon, CalendarIcon, PencilIcon, CheckIcon, XMarkIcon, UsersIcon } from "@heroicons/react/24/outline";
 
-const Supervisor_Profile = ({ userName = "Supervisor Name" }) => {
+const Supervisor_Profile = ({ userName  }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState({
     fullName: userName || "Supervisor Name",
-    email: "supervisor@company.com",
-    phone: "089-123-4567",
-    department: "IT Department",
-    position: "Team Lead / Supervisor",
-    employeeId: "SUP001",
-    joinDate: "10/03/2019",
-    teamSize: 8,
-    address: "789 ถนนเพชรบุรี กรุงเทพฯ 10400",
-    emergencyContact: "083-456-7890",
-    emergencyName: "ผู้ติดต่อฉุกเฉิน"
+    email: "",
+    phone: "",
+    department: "",
+    position: "",
+    employeeId: "",
+    joinDate: "",
+    teamSize: 0,
+    address: "",
+    emergencyContact: "",
+    emergencyName: ""
   });
 
   const [editedData, setEditedData] = useState({ ...profileData });
+  const [teamStats, setTeamStats] = useState({
+    totalMembers: 0,
+    pendingEvaluations: 0,
+    completedEvaluations: 0,
+    avgTeamScore: 0
+  });
 
-  // Mock team data
-  const teamStats = {
-    totalMembers: 8,
-    pendingEvaluations: 3,
-    completedEvaluations: 5,
-    avgTeamScore: 4.1
-  };
+  // ดึงข้อมูล Profile จาก API
+  React.useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/profile/${userName}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        const profile = {
+          fullName: data.fullName || userName,
+          email: data.email || "",
+          phone: data.phone || "",
+          department: data.department || "",
+          position: data.position || "",
+          employeeId: data.employeeId || "",
+          joinDate: data.joinDate || "",
+          teamSize: data.teamSize || 0,
+          address: data.address || "",
+          emergencyContact: data.emergencyContact || "",
+          emergencyName: data.emergencyName || ""
+        };
+        
+        setProfileData(profile);
+        setEditedData(profile);
+        
+        // TODO: ดึงข้อมูล team stats จาก API
+        setTeamStats({
+          totalMembers: data.teamSize || 0,
+          pendingEvaluations: 0,
+          completedEvaluations: 0,
+          avgTeamScore: 0
+        });
+        
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userName && userName !== "user") {
+      fetchProfile();
+    } else {
+      setLoading(false);
+    }
+  }, [userName]);
 
   const handleEdit = () => {
     setIsEditing(true);
     setEditedData({ ...profileData });
   };
 
-  const handleSave = () => {
-    setProfileData({ ...editedData });
-    setIsEditing(false);
-    // TODO: Send data to backend API
-    console.log("Saving profile data:", editedData);
+  const handleSave = async () => {
+    try {
+      const response = await fetch(`/api/profile/${userName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: editedData.email,
+          phone: editedData.phone,
+          address: editedData.address,
+          emergencyName: editedData.emergencyName,
+          emergencyContact: editedData.emergencyContact
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+      
+      setProfileData({ ...editedData });
+      setIsEditing(false);
+      alert('บันทึกข้อมูลสำเร็จ');
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+    }
   };
 
   const handleCancel = () => {
@@ -47,6 +118,18 @@ const Supervisor_Profile = ({ userName = "Supervisor Name" }) => {
   const handleChange = (field, value) => {
     setEditedData({ ...editedData, [field]: value });
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-6">

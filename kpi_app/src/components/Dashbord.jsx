@@ -2,6 +2,7 @@ import React from "react";
 
 import HR_Dashboard from "./HR_Dashboard";
 import Supervisor_Dashboard from "./Supervisor_Dashboard";
+import Employee_Dashboard from "./Employee_Dashboard";
 
 const Dashboard = ({ userRole, userName }) => {
 
@@ -30,9 +31,7 @@ const Dashboard = ({ userRole, userName }) => {
         );
     }else if(userRole === 'employee' || userRole === 'emp') {
         return (
-            <div className="p-4">
-                <h1 className="text-2xl font-bold">Dashboard for Employee</h1>
-            </div>
+            <Employee_Dashboard />
         );
     }
 };

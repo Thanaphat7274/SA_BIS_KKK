@@ -1,42 +1,114 @@
 import React, { useState } from "react";
 import { UserCircleIcon, EnvelopeIcon, PhoneIcon, BuildingOfficeIcon, CalendarIcon, PencilIcon, CheckIcon, XMarkIcon, ChartBarIcon } from "@heroicons/react/24/outline";
 
-const Employee_Profile = ({ userName = "Employee Name" }) => {
+const Employee_Profile = ({ userName }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState({
     fullName: userName || "Employee Name",
-    email: "employee@company.com",
-    phone: "081-234-5678",
-    department: "IT Department",
-    position: "Software Developer",
-    employeeId: "EMP001",
-    joinDate: "15/06/2021",
-    supervisor: "Supervisor Name",
-    address: "456 ถนนพระราม 9 กรุงเทพฯ 10110",
-    emergencyContact: "082-345-6789",
-    emergencyName: "ผู้ติดต่อฉุกเฉิน"
+    email: "",
+    phone: "",
+    department: "",
+    position: "",
+    employeeId: "",
+    joinDate: "",
+    supervisor: "",
+    address: "",
+    emergencyContact: "",
+    emergencyName: ""
   });
 
   const [editedData, setEditedData] = useState({ ...profileData });
+  const [kpiSummary, setKpiSummary] = useState({
+    lastEvaluation: "-",
+    overallScore: 0,
+    evaluationsCount: 0,
+    status: "-"
+  });
 
-  // Mock KPI data
-  const kpiSummary = {
-    lastEvaluation: "มกราคม 2025",
-    overallScore: 4.2,
-    evaluationsCount: 4,
-    status: "ผ่านการประเมิน"
-  };
+  // ดึงข้อมูล Profile จาก API
+  React.useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/profile/${userName}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // อัปเดต profileData
+        const profile = {
+          fullName: data.fullName || userName,
+          email: data.email || "",
+          phone: data.phone || "",
+          department: data.department || "",
+          position: data.position || "",
+          employeeId: data.employeeId || "",
+          joinDate: data.joinDate || "",
+          supervisor: data.supervisor || "-",
+          address: data.address || "",
+          emergencyContact: data.emergencyContact || "",
+          emergencyName: data.emergencyName || ""
+        };
+        
+        setProfileData(profile);
+        setEditedData(profile);
+        
+        // อัปเดต KPI Summary
+        setKpiSummary({
+          lastEvaluation: data.lastEvaluation || "-",
+          overallScore: data.overallScore || 0,
+          evaluationsCount: data.evaluationsCount || 0,
+          status: data.overallScore >= 3.5 ? "ผ่านการประเมิน" : "ไม่ผ่านการประเมิน"
+        });
+        
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userName && userName !== "user") {
+      fetchProfile();
+    } else {
+      setLoading(false);
+    }
+  }, [userName]);
 
   const handleEdit = () => {
     setIsEditing(true);
     setEditedData({ ...profileData });
   };
 
-  const handleSave = () => {
-    setProfileData({ ...editedData });
-    setIsEditing(false);
-    // TODO: Send data to backend API
-    console.log("Saving profile data:", editedData);
+  const handleSave = async () => {
+    try {
+      const response = await fetch(`/api/profile/${userName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: editedData.email,
+          phone: editedData.phone,
+          address: editedData.address,
+          emergencyName: editedData.emergencyName,
+          emergencyContact: editedData.emergencyContact
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+      
+      setProfileData({ ...editedData });
+      setIsEditing(false);
+      alert('บันทึกข้อมูลสำเร็จ');
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+    }
   };
 
   const handleCancel = () => {
@@ -47,6 +119,18 @@ const Employee_Profile = ({ userName = "Employee Name" }) => {
   const handleChange = (field, value) => {
     setEditedData({ ...editedData, [field]: value });
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-6">
