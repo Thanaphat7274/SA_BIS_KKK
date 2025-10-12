@@ -228,15 +228,6 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
             </div>
           )}
 
-          {/* คะแนนรวม */}
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 mb-6">
-            <div className="text-center">
-              <p className="text-gray-600 text-lg mb-2">คะแนนรวมทั้งหมด</p>
-              <p className="text-5xl font-bold text-green-600">{data.total_score.toFixed(2)}</p>
-              <p className="text-gray-500 text-sm mt-2">จาก 90.00 คะแนน</p>
-            </div>
-          </div>
-
           {/* ตารางคะแนนแต่ละหมวด */}
           <div className="space-y-6">
             {data.details.map((detail, detailIndex) => (
@@ -323,6 +314,108 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* คะแนนรวม */}
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 shadow-lg mt-6">
+            <div className="text-center">
+              <p className="text-gray-600 text-lg mb-2">คะแนนรวมทั้งหมด</p>
+              {(() => {
+                const attendanceScore = data.attendance 
+                  ? calculateAttendanceScore(data.attendance).score 
+                  : 0;
+                const totalScore = data.total_score + attendanceScore;
+                return (
+                  <>
+                    <p className="text-5xl font-bold text-green-600">{totalScore.toFixed(2)}</p>
+                    <p className="text-gray-500 text-sm mt-2">จาก 100.00 คะแนน</p>
+                    <div className="mt-6 pt-4 border-t border-gray-300">
+                      <p className="text-gray-700 font-semibold mb-4">รายละเอียดคะแนนแยกตามหมวด</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm max-w-2xl mx-auto">
+                        {data.details.map((detail, index) => {
+                          // คำนวณคะแนนรวมของ detail นี้
+                          let detailScore = 0;
+                          if (detail.subdetails && detail.subdetails.length > 0) {
+                            detail.subdetails.forEach((subdetail) => {
+                              const key = `${detail.detail_id}_${subdetail.subdetail_id}`;
+                              const scoreValue = data.scores[key] || 0;
+                              detailScore += scoreValue;
+                            });
+                          }
+                          
+                          return (
+                            <div key={detail.detail_id} className="bg-white rounded-lg p-3 border-2 border-blue-100 hover:border-blue-300 transition-colors">
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-700 font-medium">
+                                  {index + 1}. {detail.topic}
+                                </span>
+                                <span className="font-bold text-blue-600">
+                                  {detailScore.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1 text-right">
+                                เต็ม {detail.max_score} คะแนน
+                              </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* คะแนนการเข้างาน */}
+                        <div className="bg-white rounded-lg p-3 border-2 border-yellow-100 hover:border-yellow-300 transition-colors">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-700 font-medium">
+                              📅 การเข้างาน
+                            </span>
+                            <span className="font-bold text-yellow-600">
+                              {attendanceScore.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1 text-right">
+                            เต็ม 10.00 คะแนน
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Comments Section */}
+          <div className="px-6 py-4 space-y-4">
+            {/* Manager Comment */}
+            {data.m_comment && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-blue-600 mr-2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+                  </svg>
+                  <h3 className="font-bold text-blue-800">ความคิดเห็นจากหัวหน้า</h3>
+                </div>
+                <p className="text-gray-700 whitespace-pre-wrap pl-7">{data.m_comment}</p>
+              </div>
+            )}
+
+            {/* Employee Comment */}
+            {data.e_comment && (
+              <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-green-600 mr-2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                  </svg>
+                  <h3 className="font-bold text-green-800">ความคิดเห็นจากพนักงาน</h3>
+                </div>
+                <p className="text-gray-700 whitespace-pre-wrap pl-7">{data.e_comment}</p>
+              </div>
+            )}
+
+            {/* Show message if no comments */}
+            {!data.m_comment && !data.e_comment && (
+              <div className="text-center text-gray-400 text-sm italic py-4">
+                ไม่มีความคิดเห็นเพิ่มเติม
+              </div>
+            )}
           </div>
         </div>
 

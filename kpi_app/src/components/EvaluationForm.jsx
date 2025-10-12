@@ -5,6 +5,7 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
   const [details, setDetails] = useState([]);
   const [scores, setScores] = useState({});
   const [comments, setComments] = useState({});
+  const [managerComment, setManagerComment] = useState(''); // Comment ของหัวหน้า
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
@@ -109,7 +110,8 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
           emp_id: employee.emp_id,
           year: currentYear,
           scores: scores,
-          comments: comments
+          comments: comments,
+          m_comment: managerComment // เพิ่ม comment ของหัวหน้า
         }),
       });
 
@@ -347,6 +349,24 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Manager Comment Section */}
+      <div className="bg-white rounded-lg border border-gray-300 p-6 mt-6">
+        <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center">
+          <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+          </svg>
+          ความคิดเห็นของหัวหน้า
+        </h3>
+        <textarea
+          value={managerComment}
+          onChange={(e) => setManagerComment(e.target.value)}
+          rows="4"
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-200 focus:border-blue-500 resize-none"
+          placeholder="กรอกความคิดเห็น ข้อเสนอแนะ หรือคำแนะนำสำหรับพนักงาน..."
+        />
+        
       </div>
 
       {/* Submit Button และข้อความแจ้งเตือน */}

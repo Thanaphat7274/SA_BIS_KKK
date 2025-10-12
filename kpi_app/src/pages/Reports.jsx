@@ -5,10 +5,11 @@ import EvaluationDetailModal from '../components/EvaluationDetailModal';
 const Reports = () => {
   const [evaluations, setEvaluations] = useState([]);
   const [allEmployees, setAllEmployees] = useState([]);
+  const [evaluationDetails, setEvaluationDetails] = useState({}); // เก็บรายละเอียดการประเมินรวม e_comment
   const [loading, setLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'evaluated', 'not-evaluated'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'evaluated', 'not-evaluated', 'confirmed'
   const [selectedEvaluation, setSelectedEvaluation] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
@@ -16,6 +17,32 @@ const Reports = () => {
     fetchEmployees();
     fetchEvaluations();
   }, [selectedYear]);
+
+  useEffect(() => {
+    // ดึงรายละเอียดการประเมินเพื่อเช็ค e_comment
+    if (evaluations.length > 0) {
+      fetchEvaluationDetails();
+    }
+  }, [evaluations]);
+
+  const fetchEvaluationDetails = async () => {
+    const details = {};
+    for (const evaluation of evaluations) {
+      try {
+        const response = await fetch(`http://localhost:8080/api/evaluations/${evaluation.appraisal_id}`);
+        if (response.ok) {
+          const data = await response.json();
+          details[evaluation.appraisal_id] = {
+            e_comment: data.e_comment || null,
+            m_comment: data.m_comment || null
+          };
+        }
+      } catch (error) {
+        console.error(`Error fetching details for ${evaluation.appraisal_id}:`, error);
+      }
+    }
+    setEvaluationDetails(details);
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -56,15 +83,25 @@ const Reports = () => {
 
   // กรองข้อมูลตามสถานะ
   const getFilteredData = () => {
+    const currentYear = selectedYear || new Date().getFullYear();
+    const evaluatedEmpIds = evaluations
+      .filter(e => e.year === parseInt(currentYear))
+      .map(e => e.emp_id);
+    
     if (statusFilter === 'evaluated') {
-      return evaluations;
+      // กรองเฉพาะพนักงานที่ประเมินแล้วแต่ยังไม่ได้ยืนยัน (ไม่มี e_comment)
+      return evaluations.filter(evaluation => {
+        const details = evaluationDetails[evaluation.appraisal_id];
+        return !details || !details.e_comment || details.e_comment.trim() === '';
+      });
+    } else if (statusFilter === 'confirmed') {
+      // กรองเฉพาะพนักงานที่ยืนยันผลการประเมินแล้ว (มี e_comment)
+      return evaluations.filter(evaluation => {
+        const details = evaluationDetails[evaluation.appraisal_id];
+        return details && details.e_comment && details.e_comment.trim() !== '';
+      });
     } else if (statusFilter === 'not-evaluated') {
       // หาพนักงานที่ยังไม่ได้ประเมินในปีที่เลือก (ไม่รวม HR)
-      const currentYear = selectedYear || new Date().getFullYear();
-      const evaluatedEmpIds = evaluations
-        .filter(e => e.year === parseInt(currentYear))
-        .map(e => e.emp_id);
-      
       return allEmployees
         .filter(emp => {
           // กรอง HR ออก
@@ -84,6 +121,27 @@ const Reports = () => {
           evaluated_at: null,
           status: 'not-evaluated'
         }));
+    } else if (statusFilter === 'all') {
+      // แสดงทั้งหมด: รวมพนักงานที่ประเมินแล้ว + พนักงานที่ยังไม่ได้ประเมิน
+      const notEvaluatedEmployees = allEmployees
+        .filter(emp => {
+          const isHR = emp.role === 'hr' || emp.role === 'HR';
+          const notEvaluated = !evaluatedEmpIds.includes(emp.emp_id);
+          return !isHR && notEvaluated;
+        })
+        .map(emp => ({
+          emp_id: emp.emp_id,
+          first_name: emp.first_name,
+          last_name: emp.last_name,
+          position_name: emp.position_name || '-',
+          year: parseInt(currentYear),
+          total_score: null,
+          evaluated_at: null,
+          status: 'not-evaluated'
+        }));
+      
+      // รวมพนักงานที่ประเมินแล้วกับที่ยังไม่ประเมิน
+      return [...evaluations, ...notEvaluatedEmployees];
     }
     return evaluations;
   };
@@ -99,6 +157,24 @@ const Reports = () => {
     const emp = allEmployees.find(emp => emp.emp_id === e.emp_id);
     return emp && emp.role !== 'hr' && emp.role !== 'HR' && e.year === currentYear;
   });
+  
+  // นับจำนวนพนักงานที่ยืนยันผลการประเมินแล้ว (ไม่รวม HR)
+  const confirmedEvaluations = evaluations.filter(evaluation => {
+    const emp = allEmployees.find(emp => emp.emp_id === evaluation.emp_id);
+    const isNotHR = emp && emp.role !== 'hr' && emp.role !== 'HR';
+    const details = evaluationDetails[evaluation.appraisal_id];
+    return isNotHR && details && details.e_comment && details.e_comment.trim() !== '';
+  });
+  const confirmedCount = confirmedEvaluations.length;
+  
+  // นับจำนวนพนักงานที่รอยืนยัน (ประเมินแล้วแต่ยังไม่ได้ยืนยัน) (ไม่รวม HR)
+  const waitingConfirmEvaluations = evaluations.filter(evaluation => {
+    const emp = allEmployees.find(emp => emp.emp_id === evaluation.emp_id);
+    const isNotHR = emp && emp.role !== 'hr' && emp.role !== 'HR';
+    const details = evaluationDetails[evaluation.appraisal_id];
+    return isNotHR && (!details || !details.e_comment || details.e_comment.trim() === '');
+  });
+  const waitingConfirmCount = waitingConfirmEvaluations.length;
   
   // หาพนักงานที่ประเมินแล้วในปีนี้
   const evaluatedEmpIdsThisYear = evaluations
@@ -203,7 +279,7 @@ const Reports = () => {
           </div>
 
           {/* ปุ่มกรองตามสถานะ */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setStatusFilter('all')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
@@ -212,18 +288,29 @@ const Reports = () => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              ทั้งหมด ({evaluations.length})
+              ทั้งหมด ({nonHREmployees.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('confirmed')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                statusFilter === 'confirmed'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              ✅ ยืนยันแล้ว ({confirmedCount})
             </button>
             <button
               onClick={() => setStatusFilter('evaluated')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 statusFilter === 'evaluated'
-                  ? 'bg-green-600 text-white'
+                  ? 'bg-yellow-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              ✓ ประเมินแล้ว ({nonHREvaluations.length})
+              ⏳ รอยืนยัน ({waitingConfirmCount})
             </button>
+
             <button
               onClick={() => setStatusFilter('not-evaluated')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
@@ -370,13 +457,28 @@ const Reports = () => {
                             ⚠ ยังไม่ประเมิน
                           </span>
                         ) : (
-                          <button
-                            onClick={() => handleViewDetail(evaluation)}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                          >
-                            <EyeIcon className="w-4 h-4" />
-                            ดูรายละเอียด
-                          </button>
+                          <div className="flex flex-col items-center gap-2">
+                            <button
+                              onClick={() => handleViewDetail(evaluation)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              <EyeIcon className="w-4 h-4" />
+                              ดูรายละเอียด
+                            </button>
+                            {(() => {
+                              const details = evaluationDetails[evaluation.appraisal_id];
+                              const isConfirmed = details && details.e_comment && details.e_comment.trim() !== '';
+                              return isConfirmed ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+                                  ✅ ยืนยันแล้ว
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-xs">
+                                  ⏳ รอยืนยัน
+                                </span>
+                              );
+                            })()}
+                          </div>
                         )}
                       </td>
                     </tr>

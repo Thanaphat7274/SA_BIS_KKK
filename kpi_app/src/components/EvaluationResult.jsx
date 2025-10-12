@@ -5,6 +5,10 @@ const EvaluationResult = ({ username }) => {
   const [evaluationData, setEvaluationData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [employeeComment, setEmployeeComment] = useState('');
+  const [isCommentSubmitted, setIsCommentSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
 
   // ดึงข้อมูลการประเมินจาก API
   useEffect(() => {
@@ -78,8 +82,22 @@ const EvaluationResult = ({ username }) => {
         
         const detailData = await detailResponse.json();
         console.log('Detail data:', detailData);
+        console.log('latestEval.appraisal_id:', latestEval.appraisal_id);
+        
+        // เพิ่ม appraisal_id เข้าไปใน detailData
+        detailData.appraisal_id = latestEval.appraisal_id;
+        
+        console.log('detailData after adding appraisal_id:', detailData);
+        console.log('detailData.appraisal_id:', detailData.appraisal_id);
         
         setEvaluationData(detailData);
+        
+        // ตรวจสอบว่ามี e_comment แล้วหรือยัง
+        if (detailData.e_comment) {
+          setEmployeeComment(detailData.e_comment);
+          setIsCommentSubmitted(true);
+        }
+        
         setError(null);
       } catch (err) {
         console.error('Error fetching evaluation:', err);
@@ -91,6 +109,82 @@ const EvaluationResult = ({ username }) => {
 
     fetchEvaluationData();
   }, [username]);
+
+  // ฟังก์ชัน submit employee comment
+  const handleSubmitComment = async () => {
+    console.log('handleSubmitComment called');
+    console.log('evaluationData:', evaluationData);
+    console.log('appraisal_id:', evaluationData?.appraisal_id);
+    
+    if (isCommentSubmitted) {
+      alert('✅ คุณได้ยืนยันผลการประเมินไปแล้ว\n\nไม่สามารถแก้ไขได้อีก');
+      return;
+    }
+
+    // ยืนยันก่อนส่ง
+    const confirmMessage = employeeComment.trim() 
+      ? '⚠️ ยืนยันการรับทราบผลการประเมิน\n\nคุณต้องการยืนยันผลการประเมินนี้หรือไม่?\n\n✓ จะบันทึกพร้อมความคิดเห็นของคุณ\n✓ หลังจากยืนยันแล้วจะไม่สามารถแก้ไขได้\n\nกด OK เพื่อยืนยัน'
+      : '⚠️ ยืนยันการรับทราบผลการประเมิน\n\nคุณต้องการยืนยันผลการประเมินนี้หรือไม่?\n\n✓ หลังจากยืนยันแล้วจะไม่สามารถแก้ไขได้\n\nกด OK เพื่อยืนยัน';
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    if (!evaluationData) {
+      console.error('evaluationData is null or undefined');
+      setSubmitMessage('❌ ไม่พบข้อมูลการประเมิน');
+      return;
+    }
+
+    if (!evaluationData.appraisal_id) {
+      console.error('appraisal_id not found in evaluationData');
+      console.error('evaluationData keys:', Object.keys(evaluationData));
+      setSubmitMessage('❌ ไม่พบข้อมูลการประเมิน ');
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitMessage('');
+
+    try {
+      const response = await fetch('http://localhost:8080/api/submitEmployeeComment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          appraisal_id: evaluationData.appraisal_id,
+          e_comment: employeeComment.trim() || '-' // ถ้าไม่มีความคิดเห็น ส่ง '-' แทน
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSubmitMessage('✅ ยืนยันผลการประเมินสำเร็จ!');
+        setIsCommentSubmitted(true);
+        
+        // แสดง alert สำเร็จ
+        setTimeout(() => {
+          alert('✅ ยืนยันผลการประเมินสำเร็จ!\n\nคุณได้ยืนยันรับทราบผลการประเมินแล้ว' + (employeeComment.trim() ? '\nพร้อมความคิดเห็นของคุณ' : ''));
+        }, 100);
+      } else {
+        // ตรวจสอบว่าเป็นกรณีส่งซ้ำหรือไม่
+        if (data.error && data.error.includes('already submitted')) {
+          setIsCommentSubmitted(true);
+          setSubmitMessage('⚠️ คุณได้ยืนยันผลการประเมินไปแล้ว');
+          alert('⚠️ คุณได้ยืนยันผลการประเมินไปแล้ว\n\nไม่สามารถยืนยันซ้ำได้');
+        } else {
+          setSubmitMessage(`❌ เกิดข้อผิดพลาด: ${data.error}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error submitting comment:', error);
+      setSubmitMessage('❌ ไม่สามารถยืนยันผลการประเมินได้');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const getSubdetailMaxScore = (detail) => {
     if (!detail.subdetails || detail.subdetails.length === 0) return 0;
@@ -307,15 +401,6 @@ const EvaluationResult = ({ username }) => {
           </div>
         )}
 
-        {/* คะแนนรวม */}
-        <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 shadow-md">
-          <div className="text-center">
-            <p className="text-gray-600 text-lg mb-2">คะแนนรวมทั้งหมด</p>
-            <p className="text-5xl font-bold text-green-600">{evaluationData.total_score.toFixed(2)}</p>
-            <p className="text-gray-500 text-sm mt-2">จาก 90.00 คะแนน</p>
-          </div>
-        </div>
-
         {/* ตารางคะแนนแต่ละหมวด */}
         <div className="space-y-6">
           {evaluationData.details.map((detail, detailIndex) => (
@@ -353,17 +438,66 @@ const EvaluationResult = ({ username }) => {
                         const scoreValue = evaluationData.scores[key] || 0;
                         const comment = evaluationData.comments?.[key] || '';
                         const subdetailMaxScore = getSubdetailMaxScore(detail);
+                        
+                        // รวบรวม score descriptions
+                        const scoreDescItems = [];
+                        for (let i = 1; i <= 5; i++) {
+                          const desc = subdetail[`score_${i}_desc`];
+                          if (desc && desc.trim() !== '') {
+                            scoreDescItems.push({
+                              level: i,
+                              text: desc,
+                              scoreValue: ((i * 20) / 100) * subdetailMaxScore
+                            });
+                          }
+                        }
 
                         return (
                           <React.Fragment key={subdetail.subdetail_id}>
                             <tr className="hover:bg-gray-50">
                               <td className="px-4 py-4">
-                                <div className="font-semibold text-gray-800">
+                                <div className="font-semibold text-gray-800 mb-3 pb-2 border-b border-gray-200">
                                   {detailIndex + 1}.{subdetail.subdetail_id} {subdetail.subdetail_topic}
                                   <span className="ml-2 text-xs text-gray-500">
                                     (คะแนนเต็ม: {subdetailMaxScore.toFixed(2)})
                                   </span>
                                 </div>
+                                
+                                {scoreDescItems.length > 0 ? (
+                                  <div className="ml-4 space-y-2">
+                                    {scoreDescItems.map((item) => {
+                                      const isSelected = Math.abs(scoreValue - item.scoreValue) < 0.01;
+                                      return (
+                                        <div
+                                          key={item.level}
+                                          className={`flex items-start p-2 rounded ${
+                                            isSelected ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-50'
+                                          }`}
+                                        >
+                                          <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                                            isSelected ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'
+                                          }`}>
+                                            {isSelected ? '✓' : item.level}
+                                          </div>
+                                          <div className="flex-1">
+                                            <span className={`font-semibold mr-2 ${
+                                              isSelected ? 'text-green-700' : 'text-blue-700'
+                                            }`}>
+                                              {item.level} ({item.scoreValue.toFixed(2)} คะแนน):
+                                            </span>
+                                            <span className={isSelected ? 'text-gray-900 font-medium' : 'text-gray-700'}>
+                                              {item.text}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-gray-500 italic">
+                                    ไม่มีเกณฑ์การให้คะแนน
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-4 text-center align-top">
                                 <div className="inline-flex flex-col items-center justify-center bg-green-50 border-2 border-green-500 rounded-lg px-4 py-3">
@@ -392,7 +526,7 @@ const EvaluationResult = ({ username }) => {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="3" className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan="2" className="px-4 py-8 text-center text-gray-500">
                           ไม่มีรายการประเมินในหมวดนี้
                         </td>
                       </tr>
@@ -402,6 +536,199 @@ const EvaluationResult = ({ username }) => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* คะแนนรวม */}
+        <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 shadow-lg">
+          <div className="text-center">
+            <p className="text-gray-600 text-lg mb-2">คะแนนรวมทั้งหมด</p>
+            {(() => {
+              const attendanceScore = evaluationData.attendance 
+                ? calculateAttendanceScore(evaluationData.attendance).score 
+                : 0;
+              const totalScore = evaluationData.total_score + attendanceScore;
+              return (
+                <>
+                  <p className="text-5xl font-bold text-green-600">{totalScore.toFixed(2)}</p>
+                  <p className="text-gray-500 text-sm mt-2">จาก 100.00 คะแนน</p>
+                  <div className="mt-6 pt-4 border-t border-gray-300">
+                    <p className="text-gray-700 font-semibold mb-4">รายละเอียดคะแนนแยกตามหมวด</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm max-w-2xl mx-auto">
+                      {evaluationData.details.map((detail, index) => {
+                        // คำนวณคะแนนรวมของ detail นี้
+                        let detailScore = 0;
+                        if (detail.subdetails && detail.subdetails.length > 0) {
+                          detail.subdetails.forEach((subdetail) => {
+                            const key = `${detail.detail_id}_${subdetail.subdetail_id}`;
+                            const scoreValue = evaluationData.scores[key] || 0;
+                            detailScore += scoreValue;
+                          });
+                        }
+                        
+                        return (
+                          <div key={detail.detail_id} className="bg-white rounded-lg p-3 border-2 border-blue-100 hover:border-blue-300 transition-colors">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-700 font-medium">
+                                {index + 1}. {detail.topic}
+                              </span>
+                              <span className="font-bold text-blue-600">
+                                {detailScore.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1 text-right">
+                              เต็ม {detail.max_score} คะแนน
+                            </div>
+                          </div>
+                        );
+                      })}
+                      
+                      {/* คะแนนการเข้างาน */}
+                      <div className="bg-white rounded-lg p-3 border-2 border-yellow-100 hover:border-yellow-300 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-700 font-medium">
+                            📅 การเข้างาน
+                          </span>
+                          <span className="font-bold text-yellow-600">
+                            {attendanceScore.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 text-right">
+                          เต็ม 10.00 คะแนน
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Manager Comment Section */}
+        {evaluationData.m_comment && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg shadow-lg p-6 mt-6">
+            <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-7 h-7 mr-3 text-blue-600">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+              </svg>
+              <span className="flex-1">ความคิดเห็นจากหัวหน้า</span>
+              <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-normal">
+                📋 Supervisor Feedback
+              </span>
+            </h3>
+            <div className="bg-white rounded-xl p-5 border-2 border-blue-100 shadow-inner">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mr-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+                    👤
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-base">
+                    {evaluationData.m_comment}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Employee Comment Section */}
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 rounded-lg shadow-lg p-6 mt-6">
+          <h3 className="text-xl font-bold text-green-900 mb-4 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-7 h-7 mr-3 text-green-600">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+            </svg>
+            <span className="flex-1">ความคิดเห็นของคุณ</span>
+            {isCommentSubmitted && (
+              <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-normal flex items-center">
+                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                ส่งแล้ว
+              </span>
+            )}
+          </h3>
+
+          {submitMessage && (
+            <div className={`mb-4 p-4 rounded-lg border-2 ${
+              submitMessage.includes('✅') 
+                ? 'bg-green-100 border-green-300 text-green-800' 
+                : 'bg-red-100 border-red-300 text-red-800'
+            }`}>
+              <p className="font-semibold flex items-center">
+                {submitMessage}
+              </p>
+            </div>
+          )}
+
+          {isCommentSubmitted && (
+            <div className="mb-4 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+              <p className="text-sm text-blue-800 flex items-center font-semibold">
+                <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                คุณได้ยืนยันการประเมินไปแล้ว
+              </p>
+              <p className="text-xs text-blue-600 mt-1 ml-7">
+                ⚠️ ความคิดเห็นที่ส่งแล้วไม่สามารถแก้ไขหรือลบได้
+              </p>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl p-5 border-2 border-green-100 shadow-inner">
+            <textarea
+              value={employeeComment}
+              onChange={(e) => setEmployeeComment(e.target.value)}
+              disabled={isCommentSubmitted}
+              rows="6"
+              className={`w-full px-4 py-3 border-2 rounded-lg resize-none transition-all ${
+                isCommentSubmitted 
+                  ? 'bg-gray-50 border-gray-300 text-gray-600 cursor-not-allowed' 
+                  : 'border-green-300 focus:ring-4 focus:ring-green-200 focus:border-green-500 hover:border-green-400'
+              }`}
+              placeholder={isCommentSubmitted 
+                ? '✓ คุณได้ส่งความคิดเห็นไปแล้ว' 
+                : '💭 แสดงความคิดเห็น ข้อเสนอแนะ หรือคำถามเกี่ยวกับผลการประเมินของคุณ (ไม่บังคับ)'}
+            />
+          </div>
+        </div>
+
+        {/* ปุ่มยืนยันผลการประเมิน */}
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={handleSubmitComment}
+            disabled={isCommentSubmitted || submitting}
+            className={`px-10 py-4 rounded-xl font-bold text-lg transition-all transform hover:scale-105 flex items-center shadow-2xl ${
+              isCommentSubmitted || submitting
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+            }`}
+          >
+            {submitting ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                กำลังบันทึก...
+              </>
+            ) : isCommentSubmitted ? (
+              <>
+                <svg className="w-6 h-6 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                ยืนยันผลการประเมินแล้ว
+              </>
+            ) : (
+              <>
+                <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                ยืนยันผลการประเมิน
+              </>
+            )}
+          </button>
         </div>
 
       </div>

@@ -1,5 +1,4 @@
-# Ignore compiled Go binary for backend service
-/database/database
+
 
 # Ignore environment variables file
 /database/.env
