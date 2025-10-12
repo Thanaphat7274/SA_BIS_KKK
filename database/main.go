@@ -643,27 +643,63 @@ func getEvaluationDetail(c *gin.Context) {
 		return
 	}
 
-	// ดึงข้อมูล Details และ Scores
-	rows, err := db.Query(`
-		SELECT 
-			d.detail_id,
-			d.topic,
-			d.max_score,
-			sd.subdetail_id,
-			sd.subdetail_topic,
-			sd.score_1_desc,
-			sd.score_2_desc,
-			sd.score_3_desc,
-			sd.score_4_desc,
-			sd.score_5_desc,
-			COALESCE(s.score_value, 0) as score_value
-		FROM Detail d
-		LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
-		LEFT JOIN Score s ON s.detail_id = d.detail_id 
-			AND s.subdetail_id = sd.subdetail_id 
-			AND s.appraisal_id = ?
-		ORDER BY d.detail_id, sd.subdetail_id
-	`, appraisalID)
+	// ดึง position_id ของพนักงาน
+	var positionID sql.NullInt64
+	db.QueryRow(`
+		SELECT e.pos_id 
+		FROM appraisal a
+		JOIN employees e ON a.user_id = e.emp_id
+		WHERE a.ap_id = ?
+	`, appraisalID).Scan(&positionID)
+
+	// ดึงข้อมูล Details และ Scores (กรองตาม position_id ของพนักงาน)
+	var rows *sql.Rows
+	if positionID.Valid {
+		// กรองเฉพาะ details ของ position นี้
+		rows, err = db.Query(`
+			SELECT 
+				d.detail_id,
+				d.topic,
+				d.max_score,
+				sd.subdetail_id,
+				sd.subdetail_topic,
+				sd.score_1_desc,
+				sd.score_2_desc,
+				sd.score_3_desc,
+				sd.score_4_desc,
+				sd.score_5_desc,
+				COALESCE(s.score_value, 0) as score_value
+			FROM Detail d
+			LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
+			LEFT JOIN Score s ON s.detail_id = d.detail_id 
+				AND s.subdetail_id = sd.subdetail_id 
+				AND s.appraisal_id = ?
+			WHERE d.position_id = ?
+			ORDER BY d.detail_id, sd.subdetail_id
+		`, appraisalID, positionID.Int64)
+	} else {
+		// ถ้าไม่มี position ให้แสดงทั้งหมด (backward compatibility)
+		rows, err = db.Query(`
+			SELECT 
+				d.detail_id,
+				d.topic,
+				d.max_score,
+				sd.subdetail_id,
+				sd.subdetail_topic,
+				sd.score_1_desc,
+				sd.score_2_desc,
+				sd.score_3_desc,
+				sd.score_4_desc,
+				sd.score_5_desc,
+				COALESCE(s.score_value, 0) as score_value
+			FROM Detail d
+			LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
+			LEFT JOIN Score s ON s.detail_id = d.detail_id 
+				AND s.subdetail_id = sd.subdetail_id 
+				AND s.appraisal_id = ?
+			ORDER BY d.detail_id, sd.subdetail_id
+		`, appraisalID)
+	}
 
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to fetch details"})
@@ -994,8 +1030,9 @@ func getDetails(c *gin.Context) {
 
 func addDetail(c *gin.Context) {
 	var requestData struct {
-		Topic    string `json:"topic"`
-		MaxScore int    `json:"max_score"`
+		Topic      string `json:"topic"`
+		MaxScore   int    `json:"max_score"`
+		PositionID int    `json:"position_id"`
 	}
 
 	if err := c.ShouldBindJSON(&requestData); err != nil {
@@ -1013,7 +1050,12 @@ func addDetail(c *gin.Context) {
 		return
 	}
 
-	// หา detail_id ถัดไป (เนื่องจากมี constraint BETWEEN 1 AND 2 อาจต้องแก้)
+	if requestData.PositionID <= 0 {
+		c.JSON(400, gin.H{"error": "Position ID is required"})
+		return
+	}
+
+	// หา detail_id ถัดไป
 	var nextDetailID int
 	err := db.QueryRow("SELECT COALESCE(MAX(detail_id), 0) + 1 FROM detail").Scan(&nextDetailID)
 	if err != nil {
@@ -1021,15 +1063,15 @@ func addDetail(c *gin.Context) {
 		return
 	}
 
-	// เพิ่ม detail ใหม่ พร้อม max_score
-	_, err = db.Exec("INSERT INTO detail (detail_id, topic, max_score) VALUES (?, ?, ?)",
-		nextDetailID, requestData.Topic, requestData.MaxScore)
+	// เพิ่ม detail ใหม่ พร้อม max_score และ position_id
+	_, err = db.Exec("INSERT INTO detail (detail_id, topic, max_score, position_id) VALUES (?, ?, ?, ?)",
+		nextDetailID, requestData.Topic, requestData.MaxScore, requestData.PositionID)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to add detail"})
 		return
 	}
 
-	c.JSON(201, gin.H{"message": "Detail added successfully"})
+	c.JSON(201, gin.H{"message": "Detail added successfully", "detail_id": nextDetailID})
 }
 
 func addSubDetail(c *gin.Context) {

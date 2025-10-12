@@ -9,7 +9,7 @@ const Evaluation = () => {
   // รับค่าที่ส่งมาจากหน้า Selectsepy
   const { employee, position, appraisalId } = location.state || {};
   const defaultEmployee = { first_name: 'ไม่ระบุ', last_name: '' };
-  const defaultPosition = { title: 'ไม่ระบุ' };
+  const defaultPosition = { position_name: 'ไม่ระบุ' };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -23,7 +23,7 @@ const Evaluation = () => {
               </h1>
               <p className="text-gray-600">
                 พนักงาน: {employee?.first_name || defaultEmployee.first_name} {employee?.last_name || defaultEmployee.last_name} | 
-                ตำแหน่ง: {position?.title || defaultPosition.title}
+                ตำแหน่ง: {position?.position_name || defaultPosition.position_name}
               </p>
             </div>
             <button

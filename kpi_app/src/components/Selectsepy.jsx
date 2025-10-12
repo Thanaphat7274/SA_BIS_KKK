@@ -42,27 +42,34 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        
         if (!sel_emp || !sel_position) {
             setWarningMessage("กรุณาเลือกพนักงานและตำแหน่งงาน");
-            
-             // นำทางไปหน้า Evaluation โดยไม่ส่ง state
-            navigate('/evaluation', { 
-                // state: { employee: selectedEmployeeData, 
-                // position: selectedPositionData } 
-            });
-
+            return; // หยุดการทำงานถ้ายังไม่ได้เลือก
         } 
-        else {
-            setWarningMessage("");
-            const selectedEmployeeData = employees.find(
-                emp => emp.emp_id === parseInt(sel_emp));
-            const selectedPositionData = positions.find(
-                pos => pos.position_id === parseInt(sel_position));
-            navigate('/evaluation', { 
-                state: { employee: selectedEmployeeData, 
-                        position: selectedPositionData } 
-            });
-        }
+        
+        setWarningMessage("");
+        
+        // หาข้อมูลพนักงานและตำแหน่งที่เลือก
+        const selectedEmployeeData = employees.find(
+            emp => emp.emp_id === parseInt(sel_emp)
+        );
+        const selectedPositionData = positions.find(
+            pos => pos.position_id === parseInt(sel_position)
+        );
+        
+        console.log('Navigating with:', {
+            employee: selectedEmployeeData,
+            position: selectedPositionData
+        });
+        
+        // นำทางไปหน้า Evaluation พร้อมส่งข้อมูล
+        navigate('/evaluation', { 
+            state: { 
+                employee: selectedEmployeeData, 
+                position: selectedPositionData 
+            } 
+        });
     };
 
     if (loading) {
@@ -218,8 +225,8 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                                 type="submit" 
                                 className="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 focus:ring-4 focus:ring-blue-300 transition-all transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl flex items-center gap-3 min-w-[200px] justify-center" 
                                 aria-label="ยืนยันการเลือกพนักงาน"
-                                // เปิดปิดปุ่มถ้ายังไม่ได้เลือกพนักงานหรือเลือกตำแหน่ง
-                                // disabled={!sel_emp || !sel_position}
+                            
+                                disabled={!sel_emp || !sel_position}
                             >
                                 <CheckCircleIcon className="h-6 w-6" />
                                 <span>ยืนยันและเริ่มประเมิน</span>

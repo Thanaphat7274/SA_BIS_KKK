@@ -32,10 +32,17 @@ const ManageEvaluationCriteria = () => {
     try {
       setLoading(true);
       // ดึงข้อมูล details ตาม position
-      const response = await fetch(`http://localhost:8080/api/getDetails?position_id=${selectedPosition}`);
+      const url = `http://localhost:8080/api/getDetails?position_id=${selectedPosition}`;
+      console.log('Fetching details from:', url);
+      const response = await fetch(url);
+      console.log('Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('Details data received:', data);
         setDetails(data || []);
+      } else {
+        console.error('Failed to fetch details:', response.status);
+        setMessage('ไม่สามารถดึงข้อมูลได้');
       }
     } catch (error) {
       console.error('Error fetching details:', error);

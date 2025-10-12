@@ -13,9 +13,17 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
     const fetchDetails = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:8080/api/getDetails');
+        
+        // สร้าง URL พร้อม position_id ถ้ามี
+        let url = 'http://localhost:8080/api/getDetails';
+        if (position && position.position_id) {
+          url += `?position_id=${position.position_id}`;
+          console.log('Fetching details for position_id:', position.position_id);
+        }
+        
+        const response = await fetch(url);
         const data = await response.json();
-        console.log('Details data:', data);
+        console.log('Details data for position:', position?.position_name, data);
         setDetails(data);
         setLoading(false);
       } catch (error) {
@@ -25,7 +33,7 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
     };
 
     fetchDetails();
-  }, []);
+  }, [position]);
 
   // จัดการการเปลี่ยนแปลงคะแนน
   const handleScoreChange = (detailId, subdetailId, value) => {
