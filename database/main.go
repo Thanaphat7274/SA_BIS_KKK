@@ -863,9 +863,7 @@ func getSupervisorDashboard(c *gin.Context) {
 	// หา emp_id จาก username
 	var empID int
 	err := db.QueryRow(`
-		SELECT emp_id FROM employees e
-		JOIN users u ON e.emp_id = u.emp_id
-		WHERE u.username = ?
+		SELECT emp_id FROM users WHERE username = ?
 	`, username).Scan(&empID)
 	
 	if err != nil {
