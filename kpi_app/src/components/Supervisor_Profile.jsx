@@ -209,22 +209,13 @@ const Supervisor_Profile = ({ userName  }) => {
           <h2 className="text-2xl font-bold text-gray-800 mb-6">ข้อมูลส่วนตัว</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Full Name */}
+            {/* Full Name - Read Only */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-semibold text-gray-700">
                 <UserCircleIcon className="h-5 w-5 mr-2 text-blue-600" />
                 ชื่อ-นามสกุล
               </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editedData.fullName}
-                  onChange={(e) => handleChange("fullName", e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              ) : (
-                <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.fullName}</p>
-              )}
+              <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.fullName}</p>
             </div>
 
             {/* Email */}
@@ -263,52 +254,34 @@ const Supervisor_Profile = ({ userName  }) => {
               )}
             </div>
 
-            {/* Department */}
+            {/* Department - Read Only */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-semibold text-gray-700">
                 <BuildingOfficeIcon className="h-5 w-5 mr-2 text-blue-600" />
                 แผนก
               </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editedData.department}
-                  onChange={(e) => handleChange("department", e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              ) : (
-                <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.department}</p>
-              )}
+              <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.department}</p>
             </div>
 
-            {/* Position */}
+            {/* Position - Read Only */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-semibold text-gray-700">
                 <BuildingOfficeIcon className="h-5 w-5 mr-2 text-blue-600" />
                 ตำแหน่ง
               </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editedData.position}
-                  onChange={(e) => handleChange("position", e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              ) : (
-                <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.position}</p>
-              )}
+              <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.position}</p>
             </div>
 
-            {/* Team Size */}
+            {/* Employee ID - Read Only */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-semibold text-gray-700">
-                <UsersIcon className="h-5 w-5 mr-2 text-blue-600" />
-                จำนวนสมาชิกในทีม
+                <BuildingOfficeIcon className="h-5 w-5 mr-2 text-blue-600" />
+                รหัสพนักงาน
               </label>
-              <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.teamSize} คน</p>
+              <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.employeeId}</p>
             </div>
 
-            {/* Join Date */}
+            {/* Join Date - Read Only */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-semibold text-gray-700">
                 <CalendarIcon className="h-5 w-5 mr-2 text-blue-600" />
@@ -317,13 +290,13 @@ const Supervisor_Profile = ({ userName  }) => {
               <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.joinDate}</p>
             </div>
 
-            {/* Employee ID */}
+            {/* Team Size - Read Only */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-semibold text-gray-700">
-                <BuildingOfficeIcon className="h-5 w-5 mr-2 text-blue-600" />
-                รหัสพนักงาน
+                <UsersIcon className="h-5 w-5 mr-2 text-blue-600" />
+                จำนวนสมาชิกในทีม
               </label>
-              <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.employeeId}</p>
+              <p className="text-gray-900 px-4 py-2 bg-gray-50 rounded-lg">{profileData.teamSize} คน</p>
             </div>
 
             {/* Address */}
