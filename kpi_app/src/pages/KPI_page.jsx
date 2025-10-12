@@ -4,6 +4,8 @@ import Profile from "../components/Profile";
 import Dashboard from "../components/Dashbord";
 import Selectepy from "../components/Selectsepy";
 import ManageEvaluationCriteria from "./ManageEvaluationCriteria";
+import Attendance from "./Attendance";
+import Reports from "./Reports";
 
 import EmployeeList from "./EmployeeList";
 import EvaluationResult from "../components/EvaluationResult";
@@ -37,8 +39,8 @@ const KPIPage = () => {
             {activepage === 'evaluation' && <Selectepy userRole={userRole} userName={userName} userFullName={userFullName} />}
             {activepage === 'my-evaluation' && <EvaluationResult username={userName} />}
             {activepage === 'employees' && <EmployeeList />}
-            {activepage === 'attendance' && <div className="p-8">บันทึกการเข้างาน</div>}
-            {activepage === 'reports' && <div className="p-8">รายงาน KPI</div>}
+            {activepage === 'attendance' && <Attendance />}
+            {activepage === 'reports' && <Reports />}
             {activepage === 'manage-criteria' && <ManageEvaluationCriteria />}
 
           </>

@@ -5,6 +5,8 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
   const [scores, setScores] = useState({});
   const [comments, setComments] = useState({});
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
 
   // ดึงข้อมูล details และ subdetails จาก database
   useEffect(() => {
@@ -57,6 +59,68 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
   const getExpectedScore = (detail) => {
     const maxScore = getSubdetailMaxScore(detail);
     return Math.round(maxScore / 2);
+  };
+
+  // ฟังก์ชัน Submit การประเมิน
+  const handleSubmit = async () => {
+    // ตรวจสอบว่ามีคะแนนหรือไม่
+    const totalSubdetails = details.reduce((sum, d) => sum + (d.subdetails?.length || 0), 0);
+    const scoredCount = Object.keys(scores).filter(k => scores[k] !== '' && scores[k] != null).length;
+    
+    if (scoredCount === 0) {
+      setSubmitMessage('กรุณาให้คะแนนอย่างน้อย 1 รายการ');
+      return;
+    }
+
+    if (scoredCount < totalSubdetails) {
+      if (!window.confirm(`คุณประเมินไปแล้ว ${scoredCount}/${totalSubdetails} รายการ ต้องการส่งผลการประเมินหรือไม่?`)) {
+        return;
+      }
+    }
+
+    // ตรวจสอบว่ามีข้อมูลพนักงาน
+    if (!employee || !employee.emp_id) {
+      setSubmitMessage('ไม่พบข้อมูลพนักงานที่ต้องการประเมิน');
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitMessage('');
+
+    try {
+      const currentYear = new Date().getFullYear();
+      
+      const response = await fetch('http://localhost:8080/api/submitEvaluation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          emp_id: employee.emp_id,
+          year: currentYear,
+          scores: scores,
+          comments: comments
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSubmitMessage(`✅ บันทึกผลการประเมินสำเร็จ! (Appraisal ID: ${data.appraisal_id})`);
+        // Reset form หลังจากส่งสำเร็จ
+        setTimeout(() => {
+          setScores({});
+          setComments({});
+        }, 2000);
+      } else {
+        setSubmitMessage(`❌ เกิดข้อผิดพลาด: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error submitting evaluation:', error);
+      setSubmitMessage('❌ ไม่สามารถส่งผลการประเมินได้');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -272,6 +336,58 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
               })()}
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Submit Button และข้อความแจ้งเตือน */}
+      <div className="bg-white rounded-lg border border-gray-300 p-6 mt-6">
+        {submitMessage && (
+          <div className={`mb-4 p-4 rounded-lg ${
+            submitMessage.includes('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}>
+            {submitMessage}
+          </div>
+        )}
+
+        {employee && (
+          <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+            <p className="text-sm text-blue-700">
+              <strong>ข้อมูลการประเมิน:</strong> {employee.first_name} {employee.last_name} 
+              {position && ` - ${position.position_name}`}
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              ปี: {new Date().getFullYear()} | พนักงาน ID: {employee.emp_id}
+            </p>
+          </div>
+        )}
+
+        <div className="flex justify-center">
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || Object.keys(scores).length === 0}
+            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 focus:ring-4 focus:ring-blue-300 transition-all transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+          >
+            {submitting ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                กำลังบันทึก...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                ส่งผลการประเมิน
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="mt-4 text-center text-sm text-gray-500">
+          <p>กรุณาตรวจสอบคะแนนก่อนกดส่ง ข้อมูลจะถูกบันทึกลงระบบทันที</p>
         </div>
       </div>
     </div>

@@ -31,6 +31,13 @@ type ScoreData struct {
 	ScoreValue  float64 `json:"score_value"`
 }
 
+type EvaluationSubmission struct {
+	EmpID    int               `json:"emp_id"`
+	Year     int               `json:"year"`
+	Scores   map[string]int    `json:"scores"`   // key: "detailID_subdetailID", value: scoreLevel
+	Comments map[string]string `json:"comments"` // key: "detailID_subdetailID", value: comment
+}
+
 type Detail struct {
 	DetailID   int         `json:"detail_id"`
 	Topic      string      `json:"topic"`
@@ -48,6 +55,17 @@ type SubDetail struct {
 	Score3Desc     string `json:"score_3_desc,omitempty"`
 	Score4Desc     string `json:"score_4_desc,omitempty"`
 	Score5Desc     string `json:"score_5_desc,omitempty"`
+}
+
+type Attendance struct {
+	AttendanceID int    `json:"attendance_id"`
+	EmpID        int    `json:"emp_id"`
+	Date         string `json:"date"`
+	Status       string `json:"status"`
+	Remark       string `json:"remark,omitempty"`
+	CreatedAt    string `json:"created_at,omitempty"`
+	FirstName    string `json:"first_name,omitempty"`
+	LastName     string `json:"last_name,omitempty"`
 }
 
 type EvaluationSection struct {
@@ -104,12 +122,12 @@ type RecentEvaluation struct {
 }
 
 type EmployeeDashboardData struct {
-	CurrentScore         float64            `json:"currentScore"`
-	AvgScore             float64            `json:"avgScore"`
-	Improvement          string             `json:"improvement"`
-	Rank                 string             `json:"rank"`
-	CompetencyScores     []CompetencyScore  `json:"competencyScores"`
-	RecentEvaluations    []RecentEvaluation `json:"recentEvaluations"`
+	CurrentScore      float64            `json:"currentScore"`
+	AvgScore          float64            `json:"avgScore"`
+	Improvement       string             `json:"improvement"`
+	Rank              string             `json:"rank"`
+	CompetencyScores  []CompetencyScore  `json:"competencyScores"`
+	RecentEvaluations []RecentEvaluation `json:"recentEvaluations"`
 }
 
 type TeamMember struct {
@@ -133,15 +151,15 @@ type EvaluationStatusData struct {
 }
 
 type SupervisorDashboardData struct {
-	TotalMembers       int                    `json:"totalMembers"`
-	Evaluated          int                    `json:"evaluated"`
-	Pending            int                    `json:"pending"`
-	AvgTeamScore       float64                `json:"avgTeamScore"`
-	TeamMembers        []TeamMember           `json:"teamMembers"`
-	ScoresByPosition   []ScoreByPosition      `json:"scoresByPosition"`
-	EvaluationStatus   []EvaluationStatusData `json:"evaluationStatus"`
-	NeedsAttention     []TeamMember           `json:"needsAttention"`
-	TopPerformer       *TeamMember            `json:"topPerformer"`
+	TotalMembers     int                    `json:"totalMembers"`
+	Evaluated        int                    `json:"evaluated"`
+	Pending          int                    `json:"pending"`
+	AvgTeamScore     float64                `json:"avgTeamScore"`
+	TeamMembers      []TeamMember           `json:"teamMembers"`
+	ScoresByPosition []ScoreByPosition      `json:"scoresByPosition"`
+	EvaluationStatus []EvaluationStatusData `json:"evaluationStatus"`
+	NeedsAttention   []TeamMember           `json:"needsAttention"`
+	TopPerformer     *TeamMember            `json:"topPerformer"`
 }
 
 type DepartmentScore struct {
@@ -405,6 +423,309 @@ func saveScore(c *gin.Context) {
 	}
 
 	c.JSON(201, gin.H{"message": "Score saved successfully"})
+}
+
+// submitEvaluation - บันทึกการประเมินทั้งหมด
+func submitEvaluation(c *gin.Context) {
+	var submission EvaluationSubmission
+	if err := c.ShouldBindJSON(&submission); err != nil {
+		c.JSON(400, gin.H{"error": "Bad request", "details": err.Error()})
+		return
+	}
+
+	// ตรวจสอบว่ามีคะแนนหรือไม่
+	if len(submission.Scores) == 0 {
+		c.JSON(400, gin.H{"error": "No scores provided"})
+		return
+	}
+
+	// เริ่ม transaction
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	// 1. สร้าง Appraisal
+	result, err := tx.Exec(`INSERT INTO appraisal (user_id, year, evaluated_at) 
+		VALUES (?, ?, datetime('now'))`,
+		submission.EmpID, submission.Year)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to create appraisal", "details": err.Error()})
+		return
+	}
+
+	appraisalID, err := result.LastInsertId()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to get appraisal ID"})
+		return
+	}
+
+	// 2. บันทึกคะแนนทั้งหมดลง Score table
+	scoreStmt, err := tx.Prepare(`INSERT INTO Score (appraisal_id, detail_id, subdetail_id, score_value) 
+		VALUES (?, ?, ?, ?)`)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to prepare score statement"})
+		return
+	}
+	defer scoreStmt.Close()
+
+	for key, scoreLevel := range submission.Scores {
+		// Parse key format: "detailID_subdetailID"
+		var detailID, subdetailID int
+		_, err := fmt.Sscanf(key, "%d_%d", &detailID, &subdetailID)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Invalid score key format", "key": key})
+			return
+		}
+
+		// คำนวณคะแนนจริงจาก scoreLevel (1-5)
+		// ดึง max_score ของ subdetail
+		var maxScore float64
+		err = tx.QueryRow(`
+			SELECT CAST(d.max_score AS REAL) / 
+				   (SELECT COUNT(*) FROM SubDetail WHERE detail_id = d.detail_id)
+			FROM Detail d
+			WHERE d.detail_id = ?
+		`, detailID).Scan(&maxScore)
+
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to calculate score", "detail_id": detailID})
+			return
+		}
+
+		// คำนวณคะแนนจากระดับ (20%, 40%, 60%, 80%, 100%)
+		scoreValue := (float64(scoreLevel) * 20.0 / 100.0) * maxScore
+
+		_, err = scoreStmt.Exec(appraisalID, detailID, subdetailID, scoreValue)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to save score", "key": key})
+			return
+		}
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	c.JSON(201, gin.H{
+		"message":      "Evaluation submitted successfully",
+		"appraisal_id": appraisalID,
+	})
+}
+
+// getAllEvaluations - ดึงรายการประเมินทั้งหมด
+func getAllEvaluations(c *gin.Context) {
+	year := c.Query("year") // optional filter by year
+
+	var query string
+	var args []interface{}
+
+	if year != "" {
+		query = `
+			SELECT 
+				a.ap_id,
+				a.user_id,
+				a.year,
+				a.evaluated_at,
+				e.first_name,
+				e.last_name,
+				p.position_name,
+				COALESCE(SUM(s.score_value), 0) as total_score
+			FROM appraisal a
+			JOIN employees e ON a.user_id = e.emp_id
+			LEFT JOIN position p ON e.pos_id = p.position_id
+			LEFT JOIN Score s ON a.ap_id = s.appraisal_id
+			WHERE a.year = ?
+			GROUP BY a.ap_id
+			ORDER BY a.evaluated_at DESC
+		`
+		args = append(args, year)
+	} else {
+		query = `
+			SELECT 
+				a.ap_id,
+				a.user_id,
+				a.year,
+				a.evaluated_at,
+				e.first_name,
+				e.last_name,
+				p.position_name,
+				COALESCE(SUM(s.score_value), 0) as total_score
+			FROM appraisal a
+			JOIN employees e ON a.user_id = e.emp_id
+			LEFT JOIN position p ON e.pos_id = p.position_id
+			LEFT JOIN Score s ON a.ap_id = s.appraisal_id
+			GROUP BY a.ap_id
+			ORDER BY a.evaluated_at DESC
+			LIMIT 100
+		`
+	}
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to fetch evaluations", "details": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type EvaluationSummary struct {
+		AppraisalID  int     `json:"appraisal_id"`
+		EmpID        int     `json:"emp_id"`
+		Year         int     `json:"year"`
+		EvaluatedAt  string  `json:"evaluated_at"`
+		FirstName    string  `json:"first_name"`
+		LastName     string  `json:"last_name"`
+		PositionName string  `json:"position_name"`
+		TotalScore   float64 `json:"total_score"`
+	}
+
+	var evaluations []EvaluationSummary
+	for rows.Next() {
+		var eval EvaluationSummary
+		err := rows.Scan(&eval.AppraisalID, &eval.EmpID, &eval.Year, &eval.EvaluatedAt,
+			&eval.FirstName, &eval.LastName, &eval.PositionName, &eval.TotalScore)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to scan evaluation"})
+			return
+		}
+		evaluations = append(evaluations, eval)
+	}
+
+	c.JSON(200, evaluations)
+}
+
+// getEvaluationDetail - ดึงรายละเอียดการประเมินพร้อมคะแนน
+func getEvaluationDetail(c *gin.Context) {
+	appraisalID := c.Param("id")
+
+	// ดึงข้อมูลพื้นฐาน
+	type EvalInfo struct {
+		EmpID        int    `json:"emp_id"`
+		FirstName    string `json:"first_name"`
+		LastName     string `json:"last_name"`
+		PositionName string `json:"position_name"`
+		Year         int    `json:"year"`
+		EvaluatedAt  string `json:"evaluated_at"`
+	}
+
+	var info EvalInfo
+	err := db.QueryRow(`
+		SELECT 
+			e.emp_id,
+			e.first_name,
+			e.last_name,
+			COALESCE(p.position_name, ''),
+			a.year,
+			a.evaluated_at
+		FROM appraisal a
+		JOIN employees e ON a.user_id = e.emp_id
+		LEFT JOIN position p ON e.pos_id = p.position_id
+		WHERE a.ap_id = ?
+	`, appraisalID).Scan(&info.EmpID, &info.FirstName, &info.LastName,
+		&info.PositionName, &info.Year, &info.EvaluatedAt)
+
+	if err != nil {
+		c.JSON(404, gin.H{"error": "Evaluation not found"})
+		return
+	}
+
+	// ดึงข้อมูล Details และ Scores
+	rows, err := db.Query(`
+		SELECT 
+			d.detail_id,
+			d.topic,
+			d.max_score,
+			sd.subdetail_id,
+			sd.subdetail_topic,
+			sd.score_1_desc,
+			sd.score_2_desc,
+			sd.score_3_desc,
+			sd.score_4_desc,
+			sd.score_5_desc,
+			COALESCE(s.score_value, 0) as score_value
+		FROM Detail d
+		LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
+		LEFT JOIN Score s ON s.detail_id = d.detail_id 
+			AND s.subdetail_id = sd.subdetail_id 
+			AND s.appraisal_id = ?
+		ORDER BY d.detail_id, sd.subdetail_id
+	`, appraisalID)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to fetch details"})
+		return
+	}
+	defer rows.Close()
+
+	// จัดกลุ่มข้อมูล
+	detailsMap := make(map[int]*Detail)
+	scoresMap := make(map[string]float64) // key: "detailID_subdetailID"
+
+	for rows.Next() {
+		var detailID, maxScore, subdetailID int
+		var topic, subdetailTopic string
+		var score1, score2, score3, score4, score5 sql.NullString
+		var scoreValue float64
+
+		err := rows.Scan(&detailID, &topic, &maxScore, &subdetailID, &subdetailTopic,
+			&score1, &score2, &score3, &score4, &score5, &scoreValue)
+		if err != nil {
+			continue
+		}
+
+		// สร้าง Detail ถ้ายังไม่มี
+		if _, exists := detailsMap[detailID]; !exists {
+			detailsMap[detailID] = &Detail{
+				DetailID:   detailID,
+				Topic:      topic,
+				MaxScore:   maxScore,
+				SubDetails: []SubDetail{},
+			}
+		}
+
+		// เพิ่ม SubDetail
+		subDetail := SubDetail{
+			DetailID:       detailID,
+			SubDetailID:    subdetailID,
+			SubDetailTopic: subdetailTopic,
+			Score1Desc:     score1.String,
+			Score2Desc:     score2.String,
+			Score3Desc:     score3.String,
+			Score4Desc:     score4.String,
+			Score5Desc:     score5.String,
+		}
+		detailsMap[detailID].SubDetails = append(detailsMap[detailID].SubDetails, subDetail)
+
+		// เก็บคะแนน
+		if scoreValue > 0 {
+			key := fmt.Sprintf("%d_%d", detailID, subdetailID)
+			scoresMap[key] = scoreValue
+		}
+	}
+
+	// แปลง map เป็น array
+	var detailsArray []Detail
+	for _, detail := range detailsMap {
+		detailsArray = append(detailsArray, *detail)
+	}
+
+	// คำนวณคะแนนรวม
+	var totalScore float64
+	for _, score := range scoresMap {
+		totalScore += score
+	}
+
+	c.JSON(200, gin.H{
+		"employee":    info,
+		"details":     detailsArray,
+		"scores":      scoresMap,
+		"total_score": totalScore,
+	})
 }
 
 func getEvaluationByID(c *gin.Context) {
@@ -816,6 +1137,130 @@ func deleteDetail(c *gin.Context) {
 	c.JSON(200, gin.H{"message": "Detail and all subdetails deleted successfully"})
 }
 
+// getAttendance - ดึงข้อมูลการเข้างานของพนักงาน
+func getAttendance(c *gin.Context) {
+	empID := c.Query("emp_id")
+	year := c.Query("year") // format: YYYY
+
+	var query string
+	var args []interface{}
+
+	if empID != "" && year != "" {
+		// กรองตาม emp_id และปี
+		query = `SELECT a.attendance_id, a.emp_id, a.date, a.status, a.remark, a.created_at,
+				e.first_name, e.last_name
+				FROM attendance a
+				LEFT JOIN employees e ON a.emp_id = e.emp_id
+				WHERE a.emp_id = ? AND strftime('%Y', a.date) = ?
+				ORDER BY a.date DESC`
+		args = append(args, empID, year)
+	} else if empID != "" {
+		// กรองเฉพาะ emp_id
+		query = `SELECT a.attendance_id, a.emp_id, a.date, a.status, a.remark, a.created_at,
+				e.first_name, e.last_name
+				FROM attendance a
+				LEFT JOIN employees e ON a.emp_id = e.emp_id
+				WHERE a.emp_id = ?
+				ORDER BY a.date DESC`
+		args = append(args, empID)
+	} else if year != "" {
+		// กรองเฉพาะปี
+		query = `SELECT a.attendance_id, a.emp_id, a.date, a.status, a.remark, a.created_at,
+				e.first_name, e.last_name
+				FROM attendance a
+				LEFT JOIN employees e ON a.emp_id = e.emp_id
+				WHERE strftime('%Y', a.date) = ?
+				ORDER BY a.date DESC`
+		args = append(args, year)
+	} else {
+		// ดึงทั้งหมด
+		query = `SELECT a.attendance_id, a.emp_id, a.date, a.status, a.remark, a.created_at,
+				e.first_name, e.last_name
+				FROM attendance a
+				LEFT JOIN employees e ON a.emp_id = e.emp_id
+				ORDER BY a.date DESC
+				LIMIT 100`
+	}
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to fetch attendance", "details": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var attendances []Attendance
+	for rows.Next() {
+		var att Attendance
+		err := rows.Scan(&att.AttendanceID, &att.EmpID, &att.Date, &att.Status,
+			&att.Remark, &att.CreatedAt, &att.FirstName, &att.LastName)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to scan attendance"})
+			return
+		}
+		attendances = append(attendances, att)
+	}
+
+	c.JSON(200, attendances)
+}
+
+// addAttendance - เพิ่มบันทึกการเข้างาน
+func addAttendance(c *gin.Context) {
+	var attendance Attendance
+	if err := c.ShouldBindJSON(&attendance); err != nil {
+		c.JSON(400, gin.H{"error": "Bad request"})
+		return
+	}
+
+	result, err := db.Exec(`INSERT INTO attendance (emp_id, date, status, remark) 
+		VALUES (?, ?, ?, ?)`,
+		attendance.EmpID, attendance.Date, attendance.Status, attendance.Remark)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to add attendance"})
+		return
+	}
+
+	id, _ := result.LastInsertId()
+	c.JSON(201, gin.H{"message": "Attendance added successfully", "attendance_id": id})
+}
+
+// updateAttendance - แก้ไขบันทึกการเข้างาน
+func updateAttendance(c *gin.Context) {
+	attendanceID := c.Param("id")
+
+	var attendance Attendance
+	if err := c.ShouldBindJSON(&attendance); err != nil {
+		c.JSON(400, gin.H{"error": "Bad request"})
+		return
+	}
+
+	_, err := db.Exec(`UPDATE attendance 
+		SET date = ?, status = ?, remark = ?
+		WHERE attendance_id = ?`,
+		attendance.Date, attendance.Status, attendance.Remark, attendanceID)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to update attendance"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Attendance updated successfully"})
+}
+
+// deleteAttendance - ลบบันทึกการเข้างาน
+func deleteAttendance(c *gin.Context) {
+	attendanceID := c.Param("id")
+
+	_, err := db.Exec("DELETE FROM attendance WHERE attendance_id = ?", attendanceID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to delete attendance"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Attendance deleted successfully"})
+}
+
 // getProfile - ดึงข้อมูล Profile ของพนักงานตาม username
 func getProfile(c *gin.Context) {
 	username := c.Param("username")
@@ -952,14 +1397,14 @@ func updateProfile(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Failed to update profile"})
 		return
 	}
-	
-		c.JSON(200, gin.H{"message": "Profile updated successfully"})
+
+	c.JSON(200, gin.H{"message": "Profile updated successfully"})
 }
 
 // getEmployeeDashboard - ดึงข้อมูล Dashboard สำหรับพนักงาน
 func getEmployeeDashboard(c *gin.Context) {
 	username := c.Param("username")
-	
+
 	// หา emp_id จาก username
 	var empID int
 	err := db.QueryRow("SELECT emp_id FROM users WHERE username = ?", username).Scan(&empID)
@@ -967,9 +1412,9 @@ func getEmployeeDashboard(c *gin.Context) {
 		c.JSON(404, gin.H{"error": "User not found"})
 		return
 	}
-	
+
 	dashboard := EmployeeDashboardData{}
-	
+
 	// คำนวณคะแนนปัจจุบัน (latest evaluation)
 	var currentScore sql.NullFloat64
 	db.QueryRow(`
@@ -980,11 +1425,11 @@ func getEmployeeDashboard(c *gin.Context) {
 		ORDER BY a.evaluated_at DESC
 		LIMIT 1
 	`, empID).Scan(&currentScore)
-	
+
 	if currentScore.Valid {
 		dashboard.CurrentScore = currentScore.Float64 / 20.0 // แปลงเป็นคะแนน 5
 	}
-	
+
 	// คำนวณคะแนนเฉลี่ย
 	var avgScore sql.NullFloat64
 	db.QueryRow(`
@@ -996,11 +1441,11 @@ func getEmployeeDashboard(c *gin.Context) {
 			GROUP BY s.appraisal_id
 		)
 	`, empID).Scan(&avgScore)
-	
+
 	if avgScore.Valid {
 		dashboard.AvgScore = avgScore.Float64 / 20.0
 	}
-	
+
 	// คำนวณการพัฒนา
 	if dashboard.CurrentScore > dashboard.AvgScore {
 		diff := dashboard.CurrentScore - dashboard.AvgScore
@@ -1009,10 +1454,10 @@ func getEmployeeDashboard(c *gin.Context) {
 		diff := dashboard.AvgScore - dashboard.CurrentScore
 		dashboard.Improvement = fmt.Sprintf("-%.2f", diff)
 	}
-	
+
 	// TODO: คำนวณ Rank (ต้องเปรียบเทียบกับคนอื่น)
 	dashboard.Rank = "Top 15%"
-	
+
 	// ดึงคะแนนตาม Detail (Competency)
 	rows, err := db.Query(`
 		SELECT d.topic, SUM(s.score_value), d.max_score
@@ -1024,7 +1469,7 @@ func getEmployeeDashboard(c *gin.Context) {
 		)
 		GROUP BY d.detail_id, d.topic, d.max_score
 	`, empID, empID)
-	
+
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -1035,7 +1480,7 @@ func getEmployeeDashboard(c *gin.Context) {
 			dashboard.CompetencyScores = append(dashboard.CompetencyScores, comp)
 		}
 	}
-	
+
 	// ดึงประวัติการประเมินล่าสุด
 	evalRows, err := db.Query(`
 		SELECT 
@@ -1051,7 +1496,7 @@ func getEmployeeDashboard(c *gin.Context) {
 		ORDER BY a.evaluated_at DESC
 		LIMIT 5
 	`, empID)
-	
+
 	if err == nil {
 		defer evalRows.Close()
 		for evalRows.Next() {
@@ -1069,14 +1514,14 @@ func getEmployeeDashboard(c *gin.Context) {
 			dashboard.RecentEvaluations = append(dashboard.RecentEvaluations, eval)
 		}
 	}
-	
+
 	c.JSON(200, dashboard)
 }
 
 // getSupervisorDashboard - ดึงข้อมูล Dashboard สำหรับ Supervisor
 func getSupervisorDashboard(c *gin.Context) {
 	username := c.Param("username")
-	
+
 	// หา emp_id จาก username
 	var empID int
 	err := db.QueryRow(`
@@ -1084,17 +1529,17 @@ func getSupervisorDashboard(c *gin.Context) {
 		JOIN users u ON e.emp_id = u.emp_id
 		WHERE u.username = ?
 	`, username).Scan(&empID)
-	
+
 	if err != nil {
 		c.JSON(404, gin.H{"error": "Supervisor not found"})
 		return
 	}
-	
+
 	dashboard := SupervisorDashboardData{}
-	
+
 	// นับจำนวนสมาชิกในทีม
 	db.QueryRow("SELECT COUNT(*) FROM employees WHERE manager_id = ?", empID).Scan(&dashboard.TotalMembers)
-	
+
 	// นับการประเมินที่เสร็จแล้ว
 	db.QueryRow(`
 		SELECT COUNT(DISTINCT a.user_id)
@@ -1102,9 +1547,9 @@ func getSupervisorDashboard(c *gin.Context) {
 		JOIN employees e ON a.user_id = e.emp_id
 		WHERE e.manager_id = ? AND a.evaluated_at IS NOT NULL
 	`, empID).Scan(&dashboard.Evaluated)
-	
+
 	dashboard.Pending = dashboard.TotalMembers - dashboard.Evaluated
-	
+
 	// คำนวณคะแนนเฉลี่ยของทีม
 	var avgScore sql.NullFloat64
 	db.QueryRow(`
@@ -1117,11 +1562,11 @@ func getSupervisorDashboard(c *gin.Context) {
 			GROUP BY s.appraisal_id
 		)
 	`, empID).Scan(&avgScore)
-	
+
 	if avgScore.Valid {
 		dashboard.AvgTeamScore = avgScore.Float64 / 20.0
 	}
-	
+
 	// ดึงรายชื่อสมาชิกในทีม
 	memberRows, err := db.Query(`
 		SELECT 
@@ -1140,13 +1585,13 @@ func getSupervisorDashboard(c *gin.Context) {
 		WHERE e.manager_id = ?
 		GROUP BY e.emp_id, e.first_name, e.last_name
 	`, empID)
-	
+
 	if err == nil {
 		defer memberRows.Close()
 		for memberRows.Next() {
 			var member TeamMember
 			memberRows.Scan(&member.ID, &member.Name, &member.Position, &member.LastScore, &member.Status)
-			
+
 			// TODO: คำนวณ Trend จากประวัติคะแนน
 			if member.LastScore >= 4.0 {
 				member.Trend = "up"
@@ -1155,16 +1600,16 @@ func getSupervisorDashboard(c *gin.Context) {
 			} else {
 				member.Trend = "stable"
 			}
-			
+
 			dashboard.TeamMembers = append(dashboard.TeamMembers, member)
-			
+
 			// เพิ่มใน NeedsAttention ถ้าคะแนนต่ำหรือ trend ลง
 			if member.LastScore < 4.0 || member.Trend == "down" {
 				dashboard.NeedsAttention = append(dashboard.NeedsAttention, member)
 			}
 		}
 	}
-	
+
 	// หา Top Performer
 	if len(dashboard.TeamMembers) > 0 {
 		topPerformer := dashboard.TeamMembers[0]
@@ -1175,25 +1620,25 @@ func getSupervisorDashboard(c *gin.Context) {
 		}
 		dashboard.TopPerformer = &topPerformer
 	}
-	
+
 	// คะแนนเฉลี่ยตามตำแหน่ง (TODO: ใช้ข้อมูลจริงจาก position table)
 	dashboard.ScoresByPosition = []ScoreByPosition{
 		{Position: "พนักงาน", AvgScore: dashboard.AvgTeamScore, Count: dashboard.TotalMembers},
 	}
-	
+
 	// สถานะการประเมิน
 	dashboard.EvaluationStatus = []EvaluationStatusData{
 		{Name: "ประเมินแล้ว", Value: dashboard.Evaluated},
 		{Name: "รอการประเมิน", Value: dashboard.Pending},
 	}
-	
+
 	c.JSON(200, dashboard)
 }
 
 // getHRDashboard - ดึงข้อมูล Dashboard สำหรับ HR
 func getHRDashboard(c *gin.Context) {
 	dashboard := HRDashboardData{}
-	
+
 	// คำนวณคะแนนเฉลี่ยทั้งบริษัท
 	var avgScore sql.NullFloat64
 	db.QueryRow(`
@@ -1204,11 +1649,11 @@ func getHRDashboard(c *gin.Context) {
 			GROUP BY s.appraisal_id
 		)
 	`).Scan(&avgScore)
-	
+
 	if avgScore.Valid {
 		dashboard.AvgScore = avgScore.Float64 / 20.0
 	}
-	
+
 	// คะแนนตามแผนก
 	deptRows, err := db.Query(`
 		SELECT 
@@ -1223,7 +1668,7 @@ func getHRDashboard(c *gin.Context) {
 		) total ON a.ap_id = total.appraisal_id
 		GROUP BY e.department
 	`)
-	
+
 	if err == nil {
 		defer deptRows.Close()
 		var bestScore, worstScore float64 = 0, 999
@@ -1231,7 +1676,7 @@ func getHRDashboard(c *gin.Context) {
 			var dept DepartmentScore
 			deptRows.Scan(&dept.Department, &dept.Score)
 			dashboard.DepartmentScores = append(dashboard.DepartmentScores, dept)
-			
+
 			if dept.Score > bestScore {
 				bestScore = dept.Score
 				dashboard.BestDept = dept.Department
@@ -1244,14 +1689,14 @@ func getHRDashboard(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	// นับจำนวนการประเมิน
 	db.QueryRow("SELECT COUNT(DISTINCT user_id) FROM appraisal").Scan(&dashboard.EvaluatedCount)
-	
+
 	var totalEmployees int
 	db.QueryRow("SELECT COUNT(*) FROM employees").Scan(&totalEmployees)
 	dashboard.NotEvaluatedCount = totalEmployees - dashboard.EvaluatedCount
-	
+
 	c.JSON(200, dashboard)
 }
 
@@ -1305,6 +1750,9 @@ func main() {
 	api.GET("/employees", getEmployees)
 	api.GET("/positions", getPositions)
 	api.POST("/saveScore", saveScore)
+	api.POST("/submitEvaluation", submitEvaluation)
+	api.GET("/evaluations", getAllEvaluations)
+	api.GET("/evaluations/:id", getEvaluationDetail)
 	api.GET("/getDetails", getDetails)
 	api.POST("/addDetail", addDetail)
 	api.PUT("/updateDetail/:id", updateDetail)
@@ -1312,6 +1760,13 @@ func main() {
 	api.POST("/addSubDetail", addSubDetail)
 	api.PUT("/updateSubDetail/:id", updateSubDetail)
 	api.DELETE("/deleteSubDetail/:id", deleteSubDetail)
+
+	// Attendance routes
+	api.GET("/attendance", getAttendance)
+	api.POST("/attendance", addAttendance)
+	api.PUT("/attendance/:id", updateAttendance)
+	api.DELETE("/attendance/:id", deleteAttendance)
+
 	api.GET("/evaluation/latest", getLatestEvaluation)
 	api.GET("/evaluation/user/:username", getEvaluationByUsername)
 	api.GET("/profile/:username", getProfile)

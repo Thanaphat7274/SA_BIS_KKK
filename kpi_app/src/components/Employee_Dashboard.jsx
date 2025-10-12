@@ -9,7 +9,7 @@ const Employee_Dashboard = ({ userName }) => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await fetch(`/api/dashboard/employee/${userName}`);
+        const response = await fetch(`http://localhost:8080/api/dashboard/employee/${userName}`);
         if (response.ok) {
           const data = await response.json();
           setDashboardData(data);
