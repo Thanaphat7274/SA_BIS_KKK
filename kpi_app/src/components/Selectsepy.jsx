@@ -1,15 +1,14 @@
 import React from "react";
 import { useNavigate } from 'react-router-dom';
-import { UserGroupIcon, BriefcaseIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { UserGroupIcon, CheckCircleIcon, ExclamationCircleIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 const Selectsepy = ({ userRole, userName , userFullName }) => {
-    const [sel_emp, setSelectedEmployee] = React.useState("");
-    const [sel_position, setSelectedPosition] = React.useState("");
-    const [warn_msg, setWarningMessage] = React.useState("");
     const [employees, setEmployees] = React.useState([]);
     const [positions, setPositions] = React.useState([]);
+    const [evaluations, setEvaluations] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const navigate = useNavigate();
+    const currentYear = new Date().getFullYear();
     
     // ดึงข้อมูลจาก database เมื่อ component โหลด
     React.useEffect(() => {
@@ -18,21 +17,26 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                 setLoading(true);
                 
                 // ดึงข้อมูลพนักงาน
-                const empResponse = await fetch('http://localhost:8080/api/employees'); // เปลี่ยน URL ตาม API ของคุณ
+                const empResponse = await fetch('http://localhost:8080/api/employees');
                 const empData = await empResponse.json();
-                console.log('Employees data:', empData); // Debug
+                console.log('Employees data:', empData);
                 setEmployees(empData);
                 
                 // ดึงข้อมูลตำแหน่ง
-                const posResponse = await fetch('http://localhost:8080/api/positions'); // เปลี่ยน URL ตาม API ของคุณ
+                const posResponse = await fetch('http://localhost:8080/api/positions');
                 const posData = await posResponse.json();
-                console.log('Positions data:', posData); // Debug
+                console.log('Positions data:', posData);
                 setPositions(posData);
+                
+                // ดึงข้อมูลการประเมิน
+                const evalResponse = await fetch('http://localhost:8080/api/evaluations');
+                const evalData = await evalResponse.json();
+                console.log('Evaluations data:', evalData);
+                setEvaluations(evalData);
                 
                 setLoading(false);
             } catch (error) {
                 console.error('Error fetching data:', error);
-                setWarningMessage('ไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
                 setLoading(false);
             }
         };
@@ -40,41 +44,26 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
         fetchData();
     }, []);
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    // ฟังก์ชันไปหน้าประเมิน
+    const handleEvaluate = (employee) => {
+        const positionData = (positions || []).find(pos => pos.position_id === employee.position_id);
         
-        if (!sel_emp || !sel_position) {
-            setWarningMessage("กรุณาเลือกพนักงานและตำแหน่งงาน");
-            return; // หยุดการทำงานถ้ายังไม่ได้เลือก
-        } 
-        
-        setWarningMessage("");
-        
-        // หาข้อมูลพนักงานและตำแหน่งที่เลือก
-        const selectedEmployeeData = employees.find(
-            emp => emp.emp_id === parseInt(sel_emp)
-        );
-        const selectedPositionData = positions.find(
-            pos => pos.position_id === parseInt(sel_position)
-        );
-        
-        console.log('Navigating with:', {
-            employee: selectedEmployeeData,
-            position: selectedPositionData
+        console.log('Navigating to evaluation with:', {
+            employee: employee,
+            position: positionData
         });
         
-        // นำทางไปหน้า Evaluation พร้อมส่งข้อมูล
         navigate('/evaluation', { 
             state: { 
-                employee: selectedEmployeeData, 
-                position: selectedPositionData 
+                employee: employee, 
+                position: positionData 
             } 
         });
     };
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex justify-center items-center p-6">
+            <div className="min-h-screen bg-gray-50 flex justify-center items-center p-6">
                 <div className="bg-white p-8 rounded-2xl shadow-lg">
                     <div className="flex flex-col items-center space-y-4">
                         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
@@ -85,174 +74,182 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
         );
     }
 
-    const selectedEmployee = employees.find(emp => emp.emp_id === parseInt(sel_emp));
-    const selectedPosition = positions.find(pos => pos.position_id === parseInt(sel_position));
+    // ดึง emp_id ของ supervisor ที่ล็อกอิน
+    const currentEmpId = parseInt(localStorage.getItem('emp_id'));
     
-    console.log('sel_position:', sel_position, 'type:', typeof sel_position); // Debug
-    console.log('Employees:', employees); // Debug
-    console.log('Filtered:', employees.filter(emp => {
-        console.log(`Employee ${emp.first_name}: position_id=${emp.position_id} (${typeof emp.position_id})`);
-        return emp.position_id === parseInt(sel_position);
-    })); // Debug
+    // กรองเฉพาะลูกน้องของ supervisor (manager_id ตรงกับ emp_id ของผู้ล็อกอิน)
+    const mySubordinates = (employees || []).filter(emp => 
+        emp.manager_id === currentEmpId &&
+        emp.role !== 'hr' && 
+        emp.role !== 'HR'
+    );
     
-    // กรองพนักงานตามตำแหน่งที่เลือก
-    const filteredEmployees = sel_position 
-        ? employees.filter(emp => emp.position_id === parseInt(sel_position))
-        : [];
+    console.log('Current Supervisor emp_id:', currentEmpId);
+    console.log('My Subordinates:', mySubordinates);
+    
+    // หาพนักงานที่ถูกประเมินในปีปัจจุบันแล้ว
+    const evaluatedEmployeeIds = (evaluations || [])
+        .filter(e => e.year === currentYear)
+        .map(e => e.emp_id);
+    
+    // สร้างข้อมูลสำหรับแสดงในตาราง
+    const tableData = mySubordinates.map(emp => {
+        const isEvaluated = evaluatedEmployeeIds.includes(emp.emp_id);
+        const positionData = (positions || []).find(pos => pos.position_id === emp.position_id);
+        
+        return {
+            ...emp,
+            position_name: positionData?.position_name || '-',
+            status: isEvaluated ? 'evaluated' : 'not-evaluated'
+        };
+    });
+    
+    const evaluatedCount = tableData.filter(emp => emp.status === 'evaluated').length;
+    const notEvaluatedCount = tableData.filter(emp => emp.status === 'not-evaluated').length;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-            <div className="max-w-4xl mx-auto">
-                {/* Header Section */}
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-gray-800 mb-3">
-                        เลือกพนักงานเพื่อประเมิน
-                    </h1>
-                    <p className="text-gray-600 text-lg">
-                        กรุณาเลือกพนักงานและตำแหน่งงานที่ต้องการประเมิน KPI
-                    </p>
-                </div>
-
-                {/* Main Form Card */}
-                <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
-                    <form onSubmit={handleSubmit} className="space-y-6" aria-label="ฟอร์มเลือกพนักงาน">
-                        
-                        {/* Position Selection - เลือกก่อน */}
-                        <div className="space-y-3">
-                            <label className="flex items-center text-lg font-semibold text-gray-700 mb-2">
-                                <BriefcaseIcon className="h-6 w-6 mr-2 text-blue-600" />
-                                เลือกตำแหน่งงาน
-                            </label>
-                            <select 
-                                className="w-full p-4 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition-all text-lg bg-gray-50 hover:bg-white cursor-pointer" 
-                                value={sel_position} 
-                                onChange={(e) => {
-                                    setSelectedPosition(e.target.value);
-                                    setSelectedEmployee(""); // รีเซ็ตการเลือกพนักงานเมื่อเปลี่ยนตำแหน่ง
-                                    setWarningMessage("");
-                                }}
-                                aria-label="เลือกตำแหน่งงาน"
-                                aria-invalid={!!warn_msg}
-                            >
-                                <option value="" disabled>-- เลือกตำแหน่งงาน --</option>
-                                {positions.map((pos) => (
-                                    <option key={pos.position_id} value={pos.position_id}>
-                                        {pos.position_name}
-                                    </option>
-                                ))}
-                            </select>
-
-                            {/* Selected Position Preview */}
-                            {selectedPosition && (
-                                <div className="mt-3 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
-                                    <p className="text-sm text-gray-600">ตำแหน่งที่เลือก:</p>
-                                    <p className="text-lg font-semibold text-green-700">
-                                        {selectedPosition.title}
-                                    </p>
-                                </div>
-                            )}
+        <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <div className="bg-white shadow-sm border-b">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between items-center py-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">
+                                ประเมินพนักงานในทีม
+                            </h1>
+                            <p className="text-gray-600">
+                                เลือกพนักงานที่ต้องการประเมิน KPI ประจำปี {currentYear + 543}
+                            </p>
                         </div>
-
-                        {/* Employee Selection - เลือกหลังจากเลือกตำแหน่ง */}
-                        <div className="space-y-3">
-                            <label className="flex items-center text-lg font-semibold text-gray-700 mb-2">
-                                <UserGroupIcon className="h-6 w-6 mr-2 text-blue-600" />
-                                เลือกพนักงาน
-                            </label>
-                            <select 
-                                className="w-full p-4 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition-all text-lg bg-gray-50 hover:bg-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" 
-                                value={sel_emp} 
-                                onChange={(e) => {
-                                    setSelectedEmployee(e.target.value);
-                                    setWarningMessage("");
-                                }}
-                                aria-label="เลือกพนักงาน"
-                                aria-invalid={!!warn_msg}
-                                disabled={!sel_position}
-                            >
-                                <option value="" disabled>
-                                    {sel_position ? '-- เลือกพนักงาน --' : '-- กรุณาเลือกตำแหน่งก่อน --'}
-                                </option>
-                                {filteredEmployees.map((emp) => (
-                                    <option key={emp.emp_id} value={emp.emp_id}>
-                                        {emp.first_name} {emp.last_name} ({emp.username || 'N/A'})
-                                    </option>
-                                ))}
-                            </select>
-                            
-                            {/* แสดงจำนวนพนักงานในตำแหน่งที่เลือก */}
-                            {sel_position && filteredEmployees.length === 0 && (
-                                <div className="mt-3 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
-                                    <p className="text-sm text-yellow-700">
-                                        ไม่มีพนักงานในตำแหน่งนี้
-                                    </p>
-                                </div>
-                            )}
-                            
-                            {sel_position && filteredEmployees.length > 0 && !sel_emp && (
-                                <div className="mt-3 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
-                                    <p className="text-sm text-blue-700">
-                                        มีพนักงาน {filteredEmployees.length} คน ในตำแหน่งนี้
-                                    </p>
-                                </div>
-                            )}
-                            
-                            {/* Selected Employee Preview */}
-                            {selectedEmployee && (
-                                <div className="mt-3 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
-                                    <p className="text-sm text-gray-600">พนักงานที่เลือก:</p>
-                                    <p className="text-lg font-semibold text-blue-700">
-                                        {selectedEmployee.first_name} {selectedEmployee.last_name}
-                                    </p>
-                                    <p className="text-sm text-gray-500">
-                                        Username: {selectedEmployee.username || 'N/A'}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Warning Message */}
-                        {warn_msg && (
-                            <div className="flex items-center gap-3 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg animate-pulse">
-                                <ExclamationCircleIcon className="h-6 w-6 text-red-600 flex-shrink-0" />
-                                <p className="text-red-700 font-medium">{warn_msg}</p>
-                            </div>
-                        )}
-
-                        {/* Submit Button */}
-                        <div className="flex justify-center pt-4">
-                            <button 
-                                type="submit" 
-                                className="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 focus:ring-4 focus:ring-blue-300 transition-all transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl flex items-center gap-3 min-w-[200px] justify-center" 
-                                aria-label="ยืนยันการเลือกพนักงาน"
-                            
-                                disabled={!sel_emp || !sel_position}
-                            >
-                                <CheckCircleIcon className="h-6 w-6" />
-                                <span>ยืนยันและเริ่มประเมิน</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                {/* Info Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-blue-500">
-                        <h3 className="font-semibold text-gray-800 mb-2 flex items-center">
-                            <UserGroupIcon className="h-5 w-5 mr-2 text-blue-600" />
-                            พนักงานทั้งหมด
-                        </h3>
-                        <p className="text-3xl font-bold text-blue-600">{employees.length}</p>
-                        <p className="text-sm text-gray-500 mt-1">รายการพนักงานในระบบ</p>
+                        <DocumentTextIcon className="w-10 h-10 text-blue-600" />
                     </div>
+                </div>
+            </div>
 
-                    <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-green-500">
-                        <h3 className="font-semibold text-gray-800 mb-2 flex items-center">
-                            <BriefcaseIcon className="h-5 w-5 mr-2 text-green-600" />
-                            ตำแหน่งงาน
-                        </h3>
-                        <p className="text-3xl font-bold text-green-600">{positions.length}</p>
-                        <p className="text-sm text-gray-500 mt-1">ตำแหน่งที่มีในระบบ</p>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                {/* สถิติสรุป */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-white rounded-lg shadow p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="text-sm text-gray-600">ลูกน้องทั้งหมด</div>
+                                <div className="text-3xl font-bold text-blue-600">{mySubordinates.length}</div>
+                            </div>
+                            <UserGroupIcon className="w-12 h-12 text-blue-600 opacity-20" />
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="text-sm text-gray-600">ประเมินแล้ว</div>
+                                <div className="text-3xl font-bold text-green-600">{evaluatedCount}</div>
+                            </div>
+                            <CheckCircleIcon className="w-12 h-12 text-green-600 opacity-20" />
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="text-sm text-gray-600">ยังไม่ได้ประเมิน</div>
+                                <div className="text-3xl font-bold text-orange-600">{notEvaluatedCount}</div>
+                            </div>
+                            <ExclamationCircleIcon className="w-12 h-12 text-orange-600 opacity-20" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* ตารางรายชื่อพนักงาน */}
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        #
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        พนักงาน
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ตำแหน่ง
+                                    </th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        สถานะ
+                                    </th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        จัดการ
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {tableData.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                                            <UserGroupIcon className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+                                            <p>ไม่มีลูกน้องในการดูแลของคุณ</p>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    tableData.map((employee, index) => (
+                                        <tr key={employee.emp_id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {index + 1}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="flex-shrink-0 h-10 w-10">
+                                                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                                            <span className="text-blue-600 font-semibold">
+                                                                {employee.first_name.charAt(0)}{employee.last_name.charAt(0)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">
+                                                            {employee.first_name} {employee.last_name}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            ID: {employee.emp_id}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {employee.position_name}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                {employee.status === 'evaluated' ? (
+                                                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                                                        <CheckCircleIcon className="w-4 h-4" />
+                                                        ประเมินแล้ว
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium">
+                                                        <ExclamationCircleIcon className="w-4 h-4" />
+                                                        ยังไม่ประเมิน
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                {employee.status === 'not-evaluated' ? (
+                                                    <button
+                                                        onClick={() => handleEvaluate(employee)}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                                                    >
+                                                        <DocumentTextIcon className="w-4 h-4" />
+                                                        ประเมิน
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">
+                                                        ประเมินเรียบร้อยแล้ว
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

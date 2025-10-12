@@ -41,10 +41,14 @@ const Login = () => {
         localStorage.setItem("role", data.role);
         localStorage.setItem("username", data.username);
         localStorage.setItem("name", data.name);
+        if (data.emp_id) {
+          localStorage.setItem("emp_id", data.emp_id);
+        }
           // Debug logs
 
         console.log('local == ', localStorage.getItem("role"));
         console.log('local name == ', localStorage.getItem("name"));
+        console.log('local emp_id == ', localStorage.getItem("emp_id"));
         if (data.role === 'admin') navigate('/');
         else navigate('/');
       })

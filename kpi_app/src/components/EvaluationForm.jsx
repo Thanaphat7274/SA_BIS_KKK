@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
   const [details, setDetails] = useState([]);
@@ -7,8 +8,9 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
-
-  // ดึงข้อมูล details และ subdetails จาก database
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [appraisalId, setAppraisalId] = useState(null);
+  const navigate = useNavigate();  // ดึงข้อมูล details และ subdetails จาก database
   useEffect(() => {
     const fetchDetails = async () => {
       try {
@@ -114,11 +116,13 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setSubmitMessage(`✅ บันทึกผลการประเมินสำเร็จ! (Appraisal ID: ${data.appraisal_id})`);
-        // Reset form หลังจากส่งสำเร็จ
+        // แสดง modal สำเร็จ
+        setAppraisalId(data.appraisal_id);
+        setShowSuccessModal(true);
+        
+        // รอ 2 วินาที แล้ว navigate ไปหน้าหลัก
         setTimeout(() => {
-          setScores({});
-          setComments({});
+          navigate('/');
         }, 2000);
       } else {
         setSubmitMessage(`❌ เกิดข้อผิดพลาด: ${data.error}`);
@@ -144,17 +148,15 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4 text-center text-gray-800 mt-12">
-        ส่วนที่ 3 คะแนนความสามารถ (Performance Behavior)
-      </h2>
+      
       
       <div className="overflow-x-auto mb-8">
         <table className="w-full border-collapse text-sm">
           <thead className="bg-gray-200 font-semibold">
             <tr>
-              <th className="border border-gray-400 px-3 py-2 text-center">พฤติกรรม</th>
+              <th className="border border-gray-400 px-3 py-2 text-center">การประเมิน</th>
               <th className="border border-gray-400 px-3 py-2 text-center w-24">คะแนนคาดหวัง</th>
-              <th className="border border-gray-400 px-3 py-2 text-center w-64">ความคิดเห็น/ข้อเสนอแนะของผู้ถูกประเมิน</th>
+              <th className="border border-gray-400 px-3 py-2 text-center w-64">ความคิดเห็น/ข้อเสนอแนะของผู้ประเมิน</th>
             </tr>
           </thead>
           <tbody>
@@ -398,6 +400,46 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
           <p>กรุณาตรวจสอบคะแนนก่อนกดส่ง ข้อมูลจะถูกบันทึกลงระบบทันที</p>
         </div>
       </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4 transform animate-bounce-in">
+            <div className="text-center">
+              {/* Success Icon */}
+              <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-100 mb-4">
+                <svg className="h-12 w-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              
+              {/* Success Message */}
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                บันทึกสำเร็จ!
+              </h3>
+              <p className="text-gray-600 mb-4">
+                ผลการประเมินถูกบันทึกเรียบร้อยแล้ว
+              </p>
+              
+              {/* Appraisal ID */}
+              <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                <p className="text-sm text-blue-600 font-medium">Appraisal ID</p>
+                <p className="text-2xl font-bold text-blue-800">{appraisalId}</p>
+              </div>
+              
+              {/* Redirect Message */}
+              <p className="text-sm text-gray-500">
+                กำลังนำคุณกลับสู่หน้าหลัก...
+              </p>
+              
+              {/* Loading Animation */}
+              <div className="mt-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

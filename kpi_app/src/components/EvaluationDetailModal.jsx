@@ -262,6 +262,9 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-32">
                           คะแนนที่ได้
                         </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-64">
+                          ความคิดเห็น
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -269,67 +272,19 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
                         detail.subdetails.map((subdetail) => {
                           const key = `${detail.detail_id}_${subdetail.subdetail_id}`;
                           const scoreValue = data.scores[key] || 0;
+                          const comment = data.comments?.[key] || '';
                           const subdetailMaxScore = getSubdetailMaxScore(detail);
-                          
-                          // รวบรวม score descriptions
-                          const scoreDescItems = [];
-                          for (let i = 1; i <= 5; i++) {
-                            const desc = subdetail[`score_${i}_desc`];
-                            if (desc && desc.trim() !== '') {
-                              scoreDescItems.push({
-                                level: i,
-                                text: desc,
-                                scoreValue: ((i * 20) / 100) * subdetailMaxScore
-                              });
-                            }
-                          }
 
                           return (
                             <React.Fragment key={subdetail.subdetail_id}>
                               <tr className="hover:bg-gray-50">
                                 <td className="px-4 py-4">
-                                  <div className="font-semibold text-gray-800 mb-3 pb-2 border-b border-gray-200">
+                                  <div className="font-semibold text-gray-800">
                                     {detailIndex + 1}.{subdetail.subdetail_id} {subdetail.subdetail_topic}
                                     <span className="ml-2 text-xs text-gray-500">
                                       (คะแนนเต็ม: {subdetailMaxScore.toFixed(2)})
                                     </span>
                                   </div>
-                                  
-                                  {scoreDescItems.length > 0 ? (
-                                    <div className="ml-4 space-y-2">
-                                      {scoreDescItems.map((item) => {
-                                        const isSelected = Math.abs(scoreValue - item.scoreValue) < 0.01;
-                                        return (
-                                          <div
-                                            key={item.level}
-                                            className={`flex items-start p-2 rounded ${
-                                              isSelected ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-50'
-                                            }`}
-                                          >
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
-                                              isSelected ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'
-                                            }`}>
-                                              {isSelected ? '✓' : item.level}
-                                            </div>
-                                            <div className="flex-1">
-                                              <span className={`font-semibold mr-2 ${
-                                                isSelected ? 'text-green-700' : 'text-blue-700'
-                                              }`}>
-                                                {item.level} ({item.scoreValue.toFixed(2)} คะแนน):
-                                              </span>
-                                              <span className={isSelected ? 'text-gray-900 font-medium' : 'text-gray-700'}>
-                                                {item.text}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : (
-                                    <div className="text-sm text-gray-500 italic">
-                                      ไม่มีเกณฑ์การให้คะแนน
-                                    </div>
-                                  )}
                                 </td>
                                 <td className="px-4 py-4 text-center align-top">
                                   <div className="inline-flex flex-col items-center justify-center bg-green-50 border-2 border-green-500 rounded-lg px-4 py-3">
@@ -341,13 +296,24 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
                                     </div>
                                   </div>
                                 </td>
+                                <td className="px-4 py-4 align-top">
+                                  {comment ? (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment}</p>
+                                    </div>
+                                  ) : (
+                                    <div className="text-center text-gray-400 text-sm italic">
+                                      ไม่มีความคิดเห็น
+                                    </div>
+                                  )}
+                                </td>
                               </tr>
                             </React.Fragment>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan="2" className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan="3" className="px-4 py-8 text-center text-gray-500">
                             ไม่มีรายการประเมินในหมวดนี้
                           </td>
                         </tr>

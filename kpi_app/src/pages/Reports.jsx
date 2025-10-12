@@ -4,14 +4,30 @@ import EvaluationDetailModal from '../components/EvaluationDetailModal';
 
 const Reports = () => {
   const [evaluations, setEvaluations] = useState([]);
+  const [allEmployees, setAllEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'evaluated', 'not-evaluated'
   const [selectedEvaluation, setSelectedEvaluation] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
+    fetchEmployees();
     fetchEvaluations();
   }, [selectedYear]);
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/employees');
+      if (response.ok) {
+        const data = await response.json();
+        setAllEmployees(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    }
+  };
 
   const fetchEvaluations = async () => {
     try {
@@ -37,6 +53,63 @@ const Reports = () => {
     setSelectedEvaluation(evaluation);
     setShowDetailModal(true);
   };
+
+  // กรองข้อมูลตามสถานะ
+  const getFilteredData = () => {
+    if (statusFilter === 'evaluated') {
+      return evaluations;
+    } else if (statusFilter === 'not-evaluated') {
+      // หาพนักงานที่ยังไม่ได้ประเมินในปีที่เลือก (ไม่รวม HR)
+      const currentYear = selectedYear || new Date().getFullYear();
+      const evaluatedEmpIds = evaluations
+        .filter(e => e.year === parseInt(currentYear))
+        .map(e => e.emp_id);
+      
+      return allEmployees
+        .filter(emp => {
+          // กรอง HR ออก
+          const isHR = emp.role === 'hr' || emp.role === 'HR';
+          // กรองคนที่ยังไม่ได้ประเมิน
+          const notEvaluated = !evaluatedEmpIds.includes(emp.emp_id);
+          
+          return !isHR && notEvaluated;
+        })
+        .map(emp => ({
+          emp_id: emp.emp_id,
+          first_name: emp.first_name,
+          last_name: emp.last_name,
+          position_name: emp.position_name || '-',
+          year: parseInt(currentYear),
+          total_score: null,
+          evaluated_at: null,
+          status: 'not-evaluated'
+        }));
+    }
+    return evaluations;
+  };
+
+  const filteredData = getFilteredData();
+  
+  // นับจำนวนพนักงานที่ไม่ใช่ HR
+  const nonHREmployees = allEmployees.filter(emp => emp.role !== 'hr' && emp.role !== 'HR');
+  
+  // นับ evaluations ที่ไม่ใช่ HR และตรงกับปีที่เลือก
+  const currentYear = parseInt(selectedYear) || new Date().getFullYear();
+  const nonHREvaluations = evaluations.filter(e => {
+    const emp = allEmployees.find(emp => emp.emp_id === e.emp_id);
+    return emp && emp.role !== 'hr' && emp.role !== 'HR' && e.year === currentYear;
+  });
+  
+  // หาพนักงานที่ประเมินแล้วในปีนี้
+  const evaluatedEmpIdsThisYear = evaluations
+    .filter(e => e.year === currentYear)
+    .map(e => e.emp_id);
+  
+  // นับพนักงานที่ยังไม่ประเมินในปีนี้ (ไม่นับ HR)
+  const notEvaluatedEmployees = nonHREmployees.filter(emp => 
+    !evaluatedEmpIdsThisYear.includes(emp.emp_id)
+  );
+  const notEvaluatedCount = notEvaluatedEmployees.length;
 
   const getScoreColor = (score) => {
     if (score >= 80) return 'text-green-600';
@@ -76,16 +149,17 @@ const Reports = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* ฟิลเตอร์ */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-center gap-4">
-            <CalendarIcon className="w-6 h-6 text-gray-400" />
-            <div className="flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* กรองตามปี */}
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                <CalendarIcon className="w-4 h-4 inline mr-1" />
                 กรองตามปี
               </label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- ทั้งหมด --</option>
                 {Array.from({ length: 5 }, (_, i) => {
@@ -98,17 +172,82 @@ const Reports = () => {
                 })}
               </select>
             </div>
-            <div className="text-sm text-gray-600">
-              จำนวน: <span className="font-bold text-blue-600">{evaluations.length}</span> รายการ
+
+            {/* กรองตามสาขา (เตรียมไว้) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <DocumentTextIcon className="w-4 h-4 inline mr-1" />
+                กรองตามสาขา
+              </label>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled
+              >
+                <option value="">-- ทั้งหมด --</option>
+                <option value="1">สาขาหลัก</option>
+                <option value="2">สาขา 2</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">* ยังไม่พร้อมใช้งาน</p>
             </div>
+
+            {/* สถิติ */}
+            <div className="flex items-center justify-center bg-blue-50 rounded-lg p-3">
+              <div className="text-center">
+                <p className="text-sm text-gray-600">จำนวนทั้งหมด</p>
+                <p className="text-3xl font-bold text-blue-600">{filteredData.length}</p>
+                <p className="text-xs text-gray-500">รายการ</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ปุ่มกรองตามสถานะ */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                statusFilter === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              ทั้งหมด ({evaluations.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('evaluated')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                statusFilter === 'evaluated'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              ✓ ประเมินแล้ว ({nonHREvaluations.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('not-evaluated')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                statusFilter === 'not-evaluated'
+                  ? 'bg-orange-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              ⚠ ยังไม่ประเมิน ({notEvaluatedCount})
+            </button>
           </div>
         </div>
 
         {/* สถิติสรุป */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm text-gray-600">ทั้งหมด</div>
-            <div className="text-3xl font-bold text-gray-800">{evaluations.length}</div>
+            <div className="text-sm text-gray-600">ประเมินแล้ว</div>
+            <div className="text-3xl font-bold text-green-600">{nonHREvaluations.length}</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="text-sm text-gray-600">ยังไม่ประเมิน</div>
+            <div className="text-3xl font-bold text-orange-600">
+              {notEvaluatedCount}
+            </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm text-gray-600">คะแนนเฉลี่ย</div>
@@ -120,17 +259,9 @@ const Reports = () => {
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm text-gray-600">คะแนนสูงสุด</div>
-            <div className="text-3xl font-bold text-green-600">
+            <div className="text-3xl font-bold text-purple-600">
               {evaluations.length > 0
                 ? Math.max(...evaluations.map(e => e.total_score)).toFixed(2)
-                : '0.00'}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm text-gray-600">คะแนนต่ำสุด</div>
-            <div className="text-3xl font-bold text-red-600">
-              {evaluations.length > 0
-                ? Math.min(...evaluations.map(e => e.total_score)).toFixed(2)
                 : '0.00'}
             </div>
           </div>
@@ -161,9 +292,6 @@ const Reports = () => {
                     คะแนนรวม
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    เกรด
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     จัดการ
                   </th>
                 </tr>
@@ -171,23 +299,23 @@ const Reports = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                       <div className="flex justify-center items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         <span className="ml-3">กำลังโหลด...</span>
                       </div>
                     </td>
                   </tr>
-                ) : evaluations.length === 0 ? (
+                ) : filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                       <DocumentTextIcon className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                      <p>ไม่มีข้อมูลการประเมิน</p>
+                      <p>ไม่มีข้อมูล{statusFilter === 'not-evaluated' ? 'พนักงานที่ยังไม่ได้ประเมิน' : 'การประเมิน'}</p>
                     </td>
                   </tr>
                 ) : (
-                  evaluations.map((evaluation, index) => (
-                    <tr key={evaluation.appraisal_id} className="hover:bg-gray-50">
+                  filteredData.map((evaluation, index) => (
+                    <tr key={`${evaluation.emp_id}_${evaluation.appraisal_id || index}`} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {index + 1}
                       </td>
@@ -217,35 +345,39 @@ const Reports = () => {
                         {evaluation.year + 543}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(evaluation.evaluated_at).toLocaleDateString('th-TH', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
+                        {evaluation.evaluated_at ? (
+                          new Date(evaluation.evaluated_at).toLocaleDateString('th-TH', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })
+                        ) : (
+                          <span className="text-orange-500">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`text-2xl font-bold ${getScoreColor(evaluation.total_score)}`}>
-                          {evaluation.total_score.toFixed(2)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${
-                          getScoreGrade(evaluation.total_score) === 'A' ? 'bg-green-100 text-green-800' :
-                          getScoreGrade(evaluation.total_score).startsWith('B') ? 'bg-blue-100 text-blue-800' :
-                          getScoreGrade(evaluation.total_score).startsWith('C') ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {getScoreGrade(evaluation.total_score)}
-                        </span>
+                        {evaluation.total_score !== null ? (
+                          <span className={`text-2xl font-bold ${getScoreColor(evaluation.total_score)}`}>
+                            {evaluation.total_score.toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="text-orange-500 font-semibold">ยังไม่ประเมิน</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                        <button
-                          onClick={() => handleViewDetail(evaluation)}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          <EyeIcon className="w-4 h-4" />
-                          ดูรายละเอียด
-                        </button>
+                        {evaluation.status === 'not-evaluated' ? (
+                          <span className="inline-flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg">
+                            ⚠ ยังไม่ประเมิน
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleViewDetail(evaluation)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            <EyeIcon className="w-4 h-4" />
+                            ดูรายละเอียด
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))

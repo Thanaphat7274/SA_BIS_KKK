@@ -90,25 +90,25 @@ type EvaluationResponse struct {
 }
 
 type ProfileData struct {
-	EmpID               int     `json:"empId"`
-	FullName            string  `json:"fullName"`
-	Email               string  `json:"email"`
-	Phone               string  `json:"phone"`
-	Department          string  `json:"department"`
-	Position            string  `json:"position"`
-	EmployeeCode        string  `json:"employeeId"`
-	JoinDate            string  `json:"joinDate"`
-	Supervisor          string  `json:"supervisor"`
-	Address             string  `json:"address"`
-	EmergencyContact    string  `json:"emergencyContact"`
-	EmergencyName       string  `json:"emergencyName"`
-	TeamSize            int     `json:"teamSize"`
-	PendingEvaluations  int     `json:"pendingEvaluations"`
-	CompletedEvaluations int    `json:"completedEvaluations"`
-	AvgTeamScore        float64 `json:"avgTeamScore"`
-	LastEvaluation      string  `json:"lastEvaluation"`
-	OverallScore        float64 `json:"overallScore"`
-	EvaluationsCount    int     `json:"evaluationsCount"`
+	EmpID                int     `json:"empId"`
+	FullName             string  `json:"fullName"`
+	Email                string  `json:"email"`
+	Phone                string  `json:"phone"`
+	Department           string  `json:"department"`
+	Position             string  `json:"position"`
+	EmployeeCode         string  `json:"employeeId"`
+	JoinDate             string  `json:"joinDate"`
+	Supervisor           string  `json:"supervisor"`
+	Address              string  `json:"address"`
+	EmergencyContact     string  `json:"emergencyContact"`
+	EmergencyName        string  `json:"emergencyName"`
+	TeamSize             int     `json:"teamSize"`
+	PendingEvaluations   int     `json:"pendingEvaluations"`
+	CompletedEvaluations int     `json:"completedEvaluations"`
+	AvgTeamScore         float64 `json:"avgTeamScore"`
+	LastEvaluation       string  `json:"lastEvaluation"`
+	OverallScore         float64 `json:"overallScore"`
+	EvaluationsCount     int     `json:"evaluationsCount"`
 }
 
 type CompetencyScore struct {
@@ -223,14 +223,15 @@ func loginHandler(c *gin.Context) {
 	var role string
 	var firstName string
 	var lastName string
+	var empID sql.NullInt64
 
 	// JOIN กับ table employees เพื่อดึง firstname และ lastname
 	err := db.QueryRow(`
-		SELECT u.password, u.role, e.first_name, e.last_name 
+		SELECT u.password, u.role, e.first_name, e.last_name, u.emp_id 
 		FROM users u 
 		LEFT JOIN employees e ON u.emp_id = e.emp_id 
 		WHERE u.username = ?
-	`, user.Username).Scan(&hash, &role, &firstName, &lastName)
+	`, user.Username).Scan(&hash, &role, &firstName, &lastName, &empID)
 
 	if err != nil {
 		c.JSON(401, gin.H{"error": "Invalid username or password"})
@@ -245,12 +246,18 @@ func loginHandler(c *gin.Context) {
 	// รวม firstname + lastname เป็น name
 	fullName := firstName + " " + lastName
 
-	c.JSON(200, gin.H{
+	response := gin.H{
 		"message":  "Login successful",
 		"username": user.Username,
 		"role":     role,
 		"name":     fullName,
-	})
+	}
+
+	if empID.Valid {
+		response["emp_id"] = int(empID.Int64)
+	}
+
+	c.JSON(200, response)
 }
 
 func addEmployee(c *gin.Context) {
@@ -312,7 +319,9 @@ func getEmployees(c *gin.Context) {
 			e.last_name,
 			e.hire_date,
 			e.pos_id,
-			u.username
+			e.manager_id,
+			u.username,
+			u.role
 		FROM employees e
 		LEFT JOIN users u ON e.emp_id = u.emp_id
 		ORDER BY e.emp_id DESC
@@ -329,9 +338,11 @@ func getEmployees(c *gin.Context) {
 		var firstName, lastName string
 		var hireDate sql.NullString
 		var posID sql.NullInt64
+		var managerID sql.NullInt64
 		var username sql.NullString
+		var role sql.NullString
 
-		err := rows.Scan(&empID, &firstName, &lastName, &hireDate, &posID, &username)
+		err := rows.Scan(&empID, &firstName, &lastName, &hireDate, &posID, &managerID, &username, &role)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to scan employee data"})
 			return
@@ -355,10 +366,22 @@ func getEmployees(c *gin.Context) {
 			employee["position_id"] = nil
 		}
 
+		if managerID.Valid {
+			employee["manager_id"] = int(managerID.Int64)
+		} else {
+			employee["manager_id"] = nil
+		}
+
 		if username.Valid {
 			employee["username"] = username.String
 		} else {
 			employee["username"] = nil
+		}
+
+		if role.Valid {
+			employee["role"] = role.String
+		} else {
+			employee["role"] = nil
 		}
 
 		employees = append(employees, employee)
@@ -468,8 +491,8 @@ func submitEvaluation(c *gin.Context) {
 	}
 
 	// 2. บันทึกคะแนนทั้งหมดลง Score table
-	scoreStmt, err := tx.Prepare(`INSERT INTO Score (appraisal_id, detail_id, subdetail_id, score_value) 
-		VALUES (?, ?, ?, ?)`)
+	scoreStmt, err := tx.Prepare(`INSERT INTO Score (appraisal_id, detail_id, subdetail_id, score_value, comment) 
+		VALUES (?, ?, ?, ?, ?)`)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to prepare score statement"})
 		return
@@ -503,7 +526,15 @@ func submitEvaluation(c *gin.Context) {
 		// คำนวณคะแนนจากระดับ (20%, 40%, 60%, 80%, 100%)
 		scoreValue := (float64(scoreLevel) * 20.0 / 100.0) * maxScore
 
-		_, err = scoreStmt.Exec(appraisalID, detailID, subdetailID, scoreValue)
+		// ดึง comment จาก submission.Comments (ถ้ามี)
+		comment := ""
+		if submission.Comments != nil {
+			if commentValue, exists := submission.Comments[key]; exists {
+				comment = commentValue
+			}
+		}
+
+		_, err = scoreStmt.Exec(appraisalID, detailID, subdetailID, scoreValue, comment)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to save score", "key": key})
 			return
@@ -672,7 +703,8 @@ func getEvaluationDetail(c *gin.Context) {
 				sd.score_3_desc,
 				sd.score_4_desc,
 				sd.score_5_desc,
-				COALESCE(s.score_value, 0) as score_value
+				COALESCE(s.score_value, 0) as score_value,
+				COALESCE(s.comment, '') as comment
 			FROM Detail d
 			LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
 			LEFT JOIN Score s ON s.detail_id = d.detail_id 
@@ -695,7 +727,8 @@ func getEvaluationDetail(c *gin.Context) {
 				sd.score_3_desc,
 				sd.score_4_desc,
 				sd.score_5_desc,
-				COALESCE(s.score_value, 0) as score_value
+				COALESCE(s.score_value, 0) as score_value,
+				COALESCE(s.comment, '') as comment
 			FROM Detail d
 			LEFT JOIN SubDetail sd ON d.detail_id = sd.detail_id
 			LEFT JOIN Score s ON s.detail_id = d.detail_id 
@@ -713,16 +746,17 @@ func getEvaluationDetail(c *gin.Context) {
 
 	// จัดกลุ่มข้อมูล
 	detailsMap := make(map[int]*Detail)
-	scoresMap := make(map[string]float64) // key: "detailID_subdetailID"
+	scoresMap := make(map[string]float64)  // key: "detailID_subdetailID"
+	commentsMap := make(map[string]string) // key: "detailID_subdetailID"
 
 	for rows.Next() {
 		var detailID, maxScore, subdetailID int
-		var topic, subdetailTopic string
+		var topic, subdetailTopic, comment string
 		var score1, score2, score3, score4, score5 sql.NullString
 		var scoreValue float64
 
 		err := rows.Scan(&detailID, &topic, &maxScore, &subdetailID, &subdetailTopic,
-			&score1, &score2, &score3, &score4, &score5, &scoreValue)
+			&score1, &score2, &score3, &score4, &score5, &scoreValue, &comment)
 		if err != nil {
 			continue
 		}
@@ -750,10 +784,13 @@ func getEvaluationDetail(c *gin.Context) {
 		}
 		detailsMap[detailID].SubDetails = append(detailsMap[detailID].SubDetails, subDetail)
 
-		// เก็บคะแนน
+		// เก็บคะแนนและ comment
+		key := fmt.Sprintf("%d_%d", detailID, subdetailID)
 		if scoreValue > 0 {
-			key := fmt.Sprintf("%d_%d", detailID, subdetailID)
 			scoresMap[key] = scoreValue
+		}
+		if comment != "" {
+			commentsMap[key] = comment
 		}
 	}
 
@@ -790,6 +827,7 @@ func getEvaluationDetail(c *gin.Context) {
 		"employee":    info,
 		"details":     detailsArray,
 		"scores":      scoresMap,
+		"comments":    commentsMap,
 		"total_score": totalScore,
 		"attendance":  attendance,
 	})
@@ -1428,7 +1466,7 @@ func getProfile(c *gin.Context) {
 				GROUP BY a.ap_id
 			)
 		`, empID, 2025).Scan(&avgTeamScore)
-		
+
 		if avgTeamScore.Valid {
 			profile.AvgTeamScore = avgTeamScore.Float64 / 20.0 // แปลงเป็นคะแนน 5
 		}
