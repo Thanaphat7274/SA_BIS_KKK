@@ -587,12 +587,21 @@ func getAllEvaluations(c *gin.Context) {
 	var evaluations []EvaluationSummary
 	for rows.Next() {
 		var eval EvaluationSummary
+		var positionName sql.NullString
+
 		err := rows.Scan(&eval.AppraisalID, &eval.EmpID, &eval.Year, &eval.EvaluatedAt,
-			&eval.FirstName, &eval.LastName, &eval.PositionName, &eval.TotalScore)
+			&eval.FirstName, &eval.LastName, &positionName, &eval.TotalScore)
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to scan evaluation"})
+			c.JSON(500, gin.H{"error": "Failed to scan evaluation", "details": err.Error()})
 			return
 		}
+
+		if positionName.Valid {
+			eval.PositionName = positionName.String
+		} else {
+			eval.PositionName = ""
+		}
+
 		evaluations = append(evaluations, eval)
 	}
 
@@ -720,11 +729,29 @@ func getEvaluationDetail(c *gin.Context) {
 		totalScore += score
 	}
 
+	// ดึงข้อมูลการเข้างาน (attendance) ของปีนั้นๆ
+	type AttendanceStats struct {
+		Absent int `json:"absent"`
+		Late   int `json:"late"`
+		Leave  int `json:"leave"`
+	}
+
+	var attendance AttendanceStats
+	db.QueryRow(`
+		SELECT 
+			COUNT(CASE WHEN status = 'ขาด' THEN 1 END) as absent,
+			COUNT(CASE WHEN status = 'สาย' THEN 1 END) as late,
+			COUNT(CASE WHEN status = 'ลา' THEN 1 END) as leave
+		FROM attendance
+		WHERE emp_id = ? AND strftime('%Y', date) = ?
+	`, info.EmpID, fmt.Sprintf("%d", info.Year)).Scan(&attendance.Absent, &attendance.Late, &attendance.Leave)
+
 	c.JSON(200, gin.H{
 		"employee":    info,
 		"details":     detailsArray,
 		"scores":      scoresMap,
 		"total_score": totalScore,
+		"attendance":  attendance,
 	})
 }
 

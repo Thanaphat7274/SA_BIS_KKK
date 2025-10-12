@@ -26,17 +26,53 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
 
   const getSubdetailMaxScore = (detail) => {
     if (!detail.subdetails || detail.subdetails.length === 0) return 0;
-    return Math.round(detail.max_score / detail.subdetails.length);
+    return detail.max_score / detail.subdetails.length;
   };
 
-  const getScoreLevel = (scoreValue, maxScore) => {
-    // คำนวณระดับคะแนนจาก score_value
-    const percentage = (scoreValue / maxScore) * 100;
-    if (percentage >= 100) return 5;
-    if (percentage >= 80) return 4;
-    if (percentage >= 60) return 3;
-    if (percentage >= 40) return 2;
-    return 1;
+  const calculateAttendanceScore = (attendanceData) => {
+    const maxScore = 10;
+    const absentDays = attendanceData?.absent || 0;
+    const lateDays = attendanceData?.late || 0;
+    const leaveDays = attendanceData?.leave || 0;
+
+    // ถ้าขาด คะแนนเป็น 0
+    if (absentDays > 0) {
+      return {
+        score: 0,
+        maxScore: maxScore,
+        absent: absentDays,
+        late: lateDays,
+        leave: leaveDays,
+        deduction: maxScore,
+        reason: 'ขาดงาน'
+      };
+    }
+
+    let deduction = 0;
+    
+    // ลา 1 วัน = ตัด 0.2 คะแนน
+    deduction += leaveDays * 0.2;
+    
+    // สาย 1 วัน = ตัด 0.1 คะแนน
+    deduction += lateDays * 0.1;
+    
+    // ถ้าลา + สาย เกิน 5 วัน ตัดเพิ่ม 1 คะแนน
+    const totalDays = leaveDays + lateDays;
+    if (totalDays > 5) {
+      deduction += 1;
+    }
+
+    const score = Math.max(0, maxScore - deduction);
+
+    return {
+      score: score,
+      maxScore: maxScore,
+      absent: absentDays,
+      late: lateDays,
+      leave: leaveDays,
+      deduction: deduction,
+      reason: null
+    };
   };
 
   if (loading) {
@@ -99,6 +135,99 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
             </div>
           </div>
 
+          {/* คะแนนการเข้างาน */}
+          {data.attendance && (
+            <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded-lg">
+              <h3 className="font-bold text-lg text-gray-800 mb-3">
+                📅 คะแนนการเข้างาน (เต็ม 10 คะแนน)
+              </h3>
+              {(() => {
+                const attendanceScore = calculateAttendanceScore(data.attendance);
+                return (
+                  <div className="space-y-3">
+                    {/* สรุปวันลา/สาย/ขาด */}
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div className="bg-blue-100 rounded-lg p-3">
+                        <p className="text-xs text-gray-600">ลา</p>
+                        <p className="text-2xl font-bold text-blue-600">{attendanceScore.leave}</p>
+                        <p className="text-xs text-gray-500">วัน</p>
+                      </div>
+                      <div className="bg-orange-100 rounded-lg p-3">
+                        <p className="text-xs text-gray-600">สาย</p>
+                        <p className="text-2xl font-bold text-orange-600">{attendanceScore.late}</p>
+                        <p className="text-xs text-gray-500">วัน</p>
+                      </div>
+                      <div className="bg-red-100 rounded-lg p-3">
+                        <p className="text-xs text-gray-600">ขาด</p>
+                        <p className="text-2xl font-bold text-red-600">{attendanceScore.absent}</p>
+                        <p className="text-xs text-gray-500">วัน</p>
+                      </div>
+                    </div>
+
+                    {/* เกณฑ์การหักคะแนน */}
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">เกณฑ์การคำนวณ:</p>
+                      <ul className="text-sm text-gray-600 space-y-1">
+                        <li>• ลา 1 วัน = ตัด 0.2 คะแนน</li>
+                        <li>• สาย 1 วัน = ตัด 0.1 คะแนน</li>
+                        <li>• ลา + สาย เกิน 5 วัน = ตัดเพิ่ม 1 คะแนน</li>
+                        <li className="text-red-600 font-semibold">• ขาด = คะแนนเป็น 0</li>
+                      </ul>
+                    </div>
+
+                    {/* การคำนวณคะแนน */}
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600">คะแนนเต็ม:</span>
+                        <span className="text-lg font-semibold text-gray-800">{attendanceScore.maxScore.toFixed(2)}</span>
+                      </div>
+                      
+                      {attendanceScore.reason ? (
+                        <div className="bg-red-50 border border-red-200 rounded p-3 mb-2">
+                          <p className="text-sm text-red-700 font-semibold">
+                            ⚠️ {attendanceScore.reason} - คะแนนเป็น 0
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          {attendanceScore.leave > 0 && (
+                            <div className="flex justify-between items-center text-sm mb-1">
+                              <span className="text-gray-600">หัก (ลา {attendanceScore.leave} วัน × 0.2):</span>
+                              <span className="text-red-600">-{(attendanceScore.leave * 0.2).toFixed(2)}</span>
+                            </div>
+                          )}
+                          {attendanceScore.late > 0 && (
+                            <div className="flex justify-between items-center text-sm mb-1">
+                              <span className="text-gray-600">หัก (สาย {attendanceScore.late} วัน × 0.1):</span>
+                              <span className="text-red-600">-{(attendanceScore.late * 0.1).toFixed(2)}</span>
+                            </div>
+                          )}
+                          {(attendanceScore.leave + attendanceScore.late) > 5 && (
+                            <div className="flex justify-between items-center text-sm mb-1">
+                              <span className="text-gray-600">หัก (เกิน 5 วัน):</span>
+                              <span className="text-red-600">-1.00</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      
+                      <div className="border-t border-gray-300 mt-2 pt-2 flex justify-between items-center">
+                        <span className="text-sm font-semibold text-gray-700">คะแนนที่ได้:</span>
+                        <span className={`text-2xl font-bold ${
+                          attendanceScore.score === 0 ? 'text-red-600' : 
+                          attendanceScore.score >= 8 ? 'text-green-600' : 
+                          attendanceScore.score >= 5 ? 'text-yellow-600' : 'text-orange-600'
+                        }`}>
+                          {attendanceScore.score.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* คะแนนรวม */}
           <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 mb-6">
             <div className="text-center">
@@ -141,7 +270,6 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
                           const key = `${detail.detail_id}_${subdetail.subdetail_id}`;
                           const scoreValue = data.scores[key] || 0;
                           const subdetailMaxScore = getSubdetailMaxScore(detail);
-                          const scoreLevel = getScoreLevel(scoreValue, subdetailMaxScore);
                           
                           // รวบรวม score descriptions
                           const scoreDescItems = [];
@@ -163,7 +291,7 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
                                   <div className="font-semibold text-gray-800 mb-3 pb-2 border-b border-gray-200">
                                     {detailIndex + 1}.{subdetail.subdetail_id} {subdetail.subdetail_topic}
                                     <span className="ml-2 text-xs text-gray-500">
-                                      (คะแนนเต็ม: {subdetailMaxScore})
+                                      (คะแนนเต็ม: {subdetailMaxScore.toFixed(2)})
                                     </span>
                                   </div>
                                   
@@ -209,7 +337,7 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
                                       {scoreValue.toFixed(2)}
                                     </div>
                                     <div className="text-xs text-gray-500 mt-1">
-                                      จาก {subdetailMaxScore}
+                                      จาก {subdetailMaxScore.toFixed(2)}
                                     </div>
                                   </div>
                                 </td>

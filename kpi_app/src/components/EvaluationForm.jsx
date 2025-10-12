@@ -52,13 +52,13 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
   // คำนวณคะแนนเต็มของแต่ละ subdetail
   const getSubdetailMaxScore = (detail) => {
     if (!detail.subdetails || detail.subdetails.length === 0) return 0;
-    return Math.round(detail.max_score / detail.subdetails.length);
+    return detail.max_score / detail.subdetails.length;
   };
 
   // คำนวณคะแนนที่คาดหวัง (ครึ่งหนึ่งของคะแนนเต็ม subdetail)
   const getExpectedScore = (detail) => {
     const maxScore = getSubdetailMaxScore(detail);
-    return Math.round(maxScore / 2);
+    return maxScore / 2;
   };
 
   // ฟังก์ชัน Submit การประเมิน
@@ -243,9 +243,9 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
                                     rowSpan={rowSpan} 
                                     className="border border-gray-400 text-center align-middle font-semibold text-lg bg-yellow-50"
                                   >
-                                    <div>{subdetailExpectedScore}</div>
+                                    <div>{subdetailExpectedScore.toFixed(2)}</div>
                                     <div className="text-xs text-gray-600 mt-1">
-                                      (จาก {getSubdetailMaxScore(detail)})
+                                      (จาก {subdetailMaxScore.toFixed(2)})
                                     </div>
                                   </td>
                                   <td 
@@ -277,9 +277,9 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
                               </div>
                             </td>
                             <td className="border border-gray-400 text-center align-middle font-semibold text-lg bg-yellow-50">
-                              <div>{getExpectedScore(detail)}</div>
+                              <div>{getExpectedScore(detail).toFixed(2)}</div>
                               <div className="text-xs text-gray-600 mt-1">
-                                (จาก {getSubdetailMaxScore(detail)})
+                                (จาก {getSubdetailMaxScore(detail).toFixed(2)})
                               </div>
                             </td>
                             <td className="border border-gray-400 align-top p-2 bg-gray-50">
