@@ -78,10 +78,10 @@ const Sidebar = ({ userRole ,
         page: 'attendance'
       },
       {
-        key: 'kpi-reports',
+        key: 'reports',
         icon: CloudArrowUpIcon,
         label: 'รายงาน KPI',
-        page: 'kpi-reports'
+        page: 'reports'
       }
     ]
     };

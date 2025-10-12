@@ -8,7 +8,7 @@ const HR_Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await fetch('/api/dashboard/hr');
+        const response = await fetch('http://localhost:8080/api/dashboard/hr');
         if (response.ok) {
           const data = await response.json();
           setDashboardData(data);
