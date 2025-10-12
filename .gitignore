@@ -1,0 +1,10 @@
+# Ignore compiled Go binary for backend service
+/database/database
+
+# Ignore environment variables file
+/database/.env
+
+# Node-related build artifacts (frontend) - keep minimal
+/kpi_app/node_modules/
+/kpi_app/.next/
+/kpi_app/dist/

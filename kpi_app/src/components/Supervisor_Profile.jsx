@@ -56,12 +56,12 @@ const Supervisor_Profile = ({ userName  }) => {
         setProfileData(profile);
         setEditedData(profile);
         
-        // TODO: ดึงข้อมูล team stats จาก API
+        // ดึงข้อมูล team stats จาก API
         setTeamStats({
           totalMembers: data.teamSize || 0,
-          pendingEvaluations: 0,
-          completedEvaluations: 0,
-          avgTeamScore: 0
+          pendingEvaluations: data.pendingEvaluations || 0,
+          completedEvaluations: data.completedEvaluations || 0,
+          avgTeamScore: data.avgTeamScore || 0
         });
         
       } catch (err) {

@@ -90,21 +90,25 @@ type EvaluationResponse struct {
 }
 
 type ProfileData struct {
-	EmpID            int     `json:"empId"`
-	FullName         string  `json:"fullName"`
-	Email            string  `json:"email"`
-	Phone            string  `json:"phone"`
-	Department       string  `json:"department"`
-	Position         string  `json:"position"`
-	EmployeeCode     string  `json:"employeeId"`
-	JoinDate         string  `json:"joinDate"`
-	Supervisor       string  `json:"supervisor"`
-	Address          string  `json:"address"`
-	EmergencyContact string  `json:"emergencyContact"`
-	EmergencyName    string  `json:"emergencyName"`
-	LastEvaluation   string  `json:"lastEvaluation"`
-	OverallScore     float64 `json:"overallScore"`
-	EvaluationsCount int     `json:"evaluationsCount"`
+	EmpID               int     `json:"empId"`
+	FullName            string  `json:"fullName"`
+	Email               string  `json:"email"`
+	Phone               string  `json:"phone"`
+	Department          string  `json:"department"`
+	Position            string  `json:"position"`
+	EmployeeCode        string  `json:"employeeId"`
+	JoinDate            string  `json:"joinDate"`
+	Supervisor          string  `json:"supervisor"`
+	Address             string  `json:"address"`
+	EmergencyContact    string  `json:"emergencyContact"`
+	EmergencyName       string  `json:"emergencyName"`
+	TeamSize            int     `json:"teamSize"`
+	PendingEvaluations  int     `json:"pendingEvaluations"`
+	CompletedEvaluations int    `json:"completedEvaluations"`
+	AvgTeamScore        float64 `json:"avgTeamScore"`
+	LastEvaluation      string  `json:"lastEvaluation"`
+	OverallScore        float64 `json:"overallScore"`
+	EvaluationsCount    int     `json:"evaluationsCount"`
 }
 
 type CompetencyScore struct {
@@ -1346,6 +1350,46 @@ func getProfile(c *gin.Context) {
 			WHERE emp_id = ?
 		`, managerID.Int64).Scan(&supervisorName)
 		profile.Supervisor = supervisorName
+	}
+
+	// นับจำนวนสมาชิกในทีม (สำหรับ Supervisor)
+	var teamSize int
+	db.QueryRow(`
+		SELECT COUNT(*) 
+		FROM employees 
+		WHERE manager_id = ?
+	`, empID).Scan(&teamSize)
+	profile.TeamSize = teamSize
+
+	// คำนวณข้อมูลทีม (สำหรับ Supervisor)
+	if teamSize > 0 {
+		// นับจำนวนที่ประเมินแล้วในปีนี้
+		var completedCount int
+		db.QueryRow(`
+			SELECT COUNT(DISTINCT e.emp_id)
+			FROM employees e
+			JOIN appraisal a ON e.emp_id = a.user_id
+			WHERE e.manager_id = ? AND a.year = ?
+		`, empID, 2025).Scan(&completedCount)
+		profile.CompletedEvaluations = completedCount
+		profile.PendingEvaluations = teamSize - completedCount
+
+		// คำนวณคะแนนเฉลี่ยของทีม
+		var avgTeamScore sql.NullFloat64
+		db.QueryRow(`
+			SELECT AVG(total_score) FROM (
+				SELECT SUM(s.score_value) as total_score
+				FROM employees e
+				JOIN appraisal a ON e.emp_id = a.user_id
+				JOIN Score s ON a.ap_id = s.appraisal_id
+				WHERE e.manager_id = ? AND a.year = ?
+				GROUP BY a.ap_id
+			)
+		`, empID, 2025).Scan(&avgTeamScore)
+		
+		if avgTeamScore.Valid {
+			profile.AvgTeamScore = avgTeamScore.Float64 / 20.0 // แปลงเป็นคะแนน 5
+		}
 	}
 
 	// ดึงข้อมูลการประเมิน
