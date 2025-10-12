@@ -19,9 +19,10 @@ type User struct {
 }
 
 type Employee struct {
-	FirstName string `json:"firstname"`
-	LastName  string `json:"lastname"`
-	HireDate  string `json:"hiredate"`
+	FirstName  string `json:"firstname"`
+	LastName   string `json:"lastname"`
+	HireDate   string `json:"hiredate"`
+	PositionID int    `json:"positionId"`
 }
 
 type ScoreData struct {
@@ -223,14 +224,15 @@ func loginHandler(c *gin.Context) {
 	var role string
 	var firstName string
 	var lastName string
+	var empID int
 
-	// JOIN กับ table employees เพื่อดึง firstname และ lastname
+	// JOIN กับ table employees เพื่อดึง firstname, lastname และ emp_id
 	err := db.QueryRow(`
-		SELECT u.password, u.role, e.first_name, e.last_name 
+		SELECT u.password, u.role, u.emp_id, e.first_name, e.last_name 
 		FROM users u 
 		LEFT JOIN employees e ON u.emp_id = e.emp_id 
 		WHERE u.username = ?
-	`, user.Username).Scan(&hash, &role, &firstName, &lastName)
+	`, user.Username).Scan(&hash, &role, &empID, &firstName, &lastName)
 
 	if err != nil {
 		c.JSON(401, gin.H{"error": "Invalid username or password"})
@@ -250,6 +252,7 @@ func loginHandler(c *gin.Context) {
 		"username": user.Username,
 		"role":     role,
 		"name":     fullName,
+		"emp_id":   empID,
 	})
 }
 
@@ -261,8 +264,8 @@ func addEmployee(c *gin.Context) {
 	}
 
 	// Insert employee into database และรับ emp_id กลับมา
-	result, err := db.Exec("INSERT INTO employees (first_name, last_name, hire_date) VALUES (?, ?, ?)",
-		employee.FirstName, employee.LastName, employee.HireDate)
+	result, err := db.Exec("INSERT INTO employees (first_name, last_name, hire_date, pos_id) VALUES (?, ?, ?, ?)",
+		employee.FirstName, employee.LastName, employee.HireDate, employee.PositionID)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to add employees"})
 		return
@@ -312,9 +315,13 @@ func getEmployees(c *gin.Context) {
 			e.last_name,
 			e.hire_date,
 			e.pos_id,
-			u.username
+			e.manager_id,
+			COALESCE(p.position_name, '-') as position_name,
+			u.username,
+			COALESCE(u.role, 'emp') as role
 		FROM employees e
 		LEFT JOIN users u ON e.emp_id = u.emp_id
+		LEFT JOIN position p ON e.pos_id = p.position_id
 		ORDER BY e.emp_id DESC
 	`)
 	if err != nil {
@@ -329,18 +336,23 @@ func getEmployees(c *gin.Context) {
 		var firstName, lastName string
 		var hireDate sql.NullString
 		var posID sql.NullInt64
+		var managerID sql.NullInt64
+		var positionName string
 		var username sql.NullString
+		var role string
 
-		err := rows.Scan(&empID, &firstName, &lastName, &hireDate, &posID, &username)
+		err := rows.Scan(&empID, &firstName, &lastName, &hireDate, &posID, &managerID, &positionName, &username, &role)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to scan employee data"})
 			return
 		}
 
 		employee := map[string]interface{}{
-			"emp_id":     empID,
-			"first_name": firstName,
-			"last_name":  lastName,
+			"emp_id":        empID,
+			"first_name":    firstName,
+			"last_name":     lastName,
+			"position_name": positionName,
+			"role":          role,
 		}
 
 		if hireDate.Valid {
@@ -353,6 +365,12 @@ func getEmployees(c *gin.Context) {
 			employee["position_id"] = int(posID.Int64)
 		} else {
 			employee["position_id"] = nil
+		}
+
+		if managerID.Valid {
+			employee["manager_id"] = int(managerID.Int64)
+		} else {
+			employee["manager_id"] = nil
 		}
 
 		if username.Valid {
@@ -1265,12 +1283,25 @@ func getAttendance(c *gin.Context) {
 	var attendances []Attendance
 	for rows.Next() {
 		var att Attendance
+		var remark, firstName, lastName sql.NullString
 		err := rows.Scan(&att.AttendanceID, &att.EmpID, &att.Date, &att.Status,
-			&att.Remark, &att.CreatedAt, &att.FirstName, &att.LastName)
+			&remark, &att.CreatedAt, &firstName, &lastName)
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to scan attendance"})
+			c.JSON(500, gin.H{"error": "Failed to scan attendance", "details": err.Error()})
 			return
 		}
+
+		// จัดการ NULL values
+		if remark.Valid {
+			att.Remark = remark.String
+		}
+		if firstName.Valid {
+			att.FirstName = firstName.String
+		}
+		if lastName.Valid {
+			att.LastName = lastName.String
+		}
+
 		attendances = append(attendances, att)
 	}
 
@@ -1528,7 +1559,7 @@ func getEmployeeDashboard(c *gin.Context) {
 
 	dashboard := EmployeeDashboardData{}
 
-	// คำนวณคะแนนปัจจุบัน (latest evaluation)
+	// คำนวณคะแนนปัจจุบัน (latest evaluation) - คะแนนจริง
 	var currentScore sql.NullFloat64
 	db.QueryRow(`
 		SELECT SUM(s.score_value)
@@ -1540,38 +1571,34 @@ func getEmployeeDashboard(c *gin.Context) {
 	`, empID).Scan(&currentScore)
 
 	if currentScore.Valid {
-		dashboard.CurrentScore = currentScore.Float64 / 20.0 // แปลงเป็นคะแนน 5
+		dashboard.CurrentScore = currentScore.Float64
 	}
 
-	// คำนวณคะแนนเฉลี่ย
-	var avgScore sql.NullFloat64
+	// คำนวณคะแนนเฉลี่ย = ผลรวมคะแนนทั้งหมด / จำนวนครั้งที่ประเมิน
+	var totalScore sql.NullFloat64
+	var evalCount int
 	db.QueryRow(`
-		SELECT AVG(total_score) FROM (
+		SELECT 
+			SUM(total_score) as sum_all,
+			COUNT(*) as count
+		FROM (
 			SELECT SUM(score_value) as total_score
 			FROM Score s
 			JOIN appraisal a ON s.appraisal_id = a.ap_id
 			WHERE a.user_id = ?
 			GROUP BY s.appraisal_id
 		)
-	`, empID).Scan(&avgScore)
+	`, empID).Scan(&totalScore, &evalCount)
 
-	if avgScore.Valid {
-		dashboard.AvgScore = avgScore.Float64 / 20.0
+	if totalScore.Valid && evalCount > 0 {
+		dashboard.AvgScore = totalScore.Float64 / float64(evalCount)
 	}
 
-	// คำนวณการพัฒนา
-	if dashboard.CurrentScore > dashboard.AvgScore {
-		diff := dashboard.CurrentScore - dashboard.AvgScore
-		dashboard.Improvement = fmt.Sprintf("+%.2f", diff)
-	} else {
-		diff := dashboard.AvgScore - dashboard.CurrentScore
-		dashboard.Improvement = fmt.Sprintf("-%.2f", diff)
-	}
+	// ไม่แสดงการพัฒนาและอันดับ
+	dashboard.Improvement = ""
+	dashboard.Rank = ""
 
-	// TODO: คำนวณ Rank (ต้องเปรียบเทียบกับคนอื่น)
-	dashboard.Rank = "Top 15%"
-
-	// ดึงคะแนนตาม Detail (Competency)
+	// ดึงคะแนนตาม Detail (Competency) - ใช้คะแนนจริง
 	rows, err := db.Query(`
 		SELECT d.topic, SUM(s.score_value), d.max_score
 		FROM Score s
@@ -1588,13 +1615,12 @@ func getEmployeeDashboard(c *gin.Context) {
 		for rows.Next() {
 			var comp CompetencyScore
 			rows.Scan(&comp.Competency, &comp.Score, &comp.FullMark)
-			comp.Score = comp.Score / float64(comp.FullMark) * 5.0 // แปลงเป็นสเกล 5
-			comp.FullMark = 5
+			// ใช้คะแนนจริงไม่ต้องแปลง
 			dashboard.CompetencyScores = append(dashboard.CompetencyScores, comp)
 		}
 	}
 
-	// ดึงประวัติการประเมินล่าสุด
+	// ดึงประวัติการประเมินล่าสุด - ใช้คะแนนจริง
 	evalRows, err := db.Query(`
 		SELECT 
 			a.evaluated_at,
@@ -1617,7 +1643,7 @@ func getEmployeeDashboard(c *gin.Context) {
 			var total float64
 			var evaluatorComment, employeeComment sql.NullString
 			evalRows.Scan(&eval.Date, &eval.Evaluator, &total, &evaluatorComment, &employeeComment)
-			eval.Score = total / 20.0 // แปลงเป็นคะแนน 5
+			eval.Score = total // ใช้คะแนนจริง
 			if evaluatorComment.Valid {
 				eval.EvaluatorComment = evaluatorComment.String
 			}
@@ -1661,21 +1687,22 @@ func getSupervisorDashboard(c *gin.Context) {
 
 	dashboard.Pending = dashboard.TotalMembers - dashboard.Evaluated
 
-	// คำนวณคะแนนเฉลี่ยของทีม
-	var avgScore sql.NullFloat64
-	db.QueryRow(`
-		SELECT AVG(total_score) FROM (
-			SELECT SUM(s.score_value) as total_score
-			FROM Score s
-			JOIN appraisal a ON s.appraisal_id = a.ap_id
-			JOIN employees e ON a.user_id = e.emp_id
-			WHERE e.manager_id = ?
-			GROUP BY s.appraisal_id
-		)
-	`, empID).Scan(&avgScore)
+	// คำนวณคะแนนเฉลี่ยของทีม = ผลรวมคะแนนทั้งหมด / จำนวนคนที่ประเมินแล้ว
+	var totalScore sql.NullFloat64
+	var evaluatedCount int
 
-	if avgScore.Valid {
-		dashboard.AvgTeamScore = avgScore.Float64 / 20.0
+	db.QueryRow(`
+		SELECT 
+			SUM(s.score_value) as total,
+			COUNT(DISTINCT a.user_id) as count
+		FROM Score s
+		JOIN appraisal a ON s.appraisal_id = a.ap_id
+		JOIN employees e ON a.user_id = e.emp_id
+		WHERE e.manager_id = ?
+	`, empID).Scan(&totalScore, &evaluatedCount)
+
+	if totalScore.Valid && evaluatedCount > 0 {
+		dashboard.AvgTeamScore = totalScore.Float64 / float64(evaluatedCount)
 	}
 
 	// ดึงรายชื่อสมาชิกในทีม

@@ -132,7 +132,7 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
                     <div className="bg-white rounded-lg shadow p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <div className="text-sm text-gray-600">ลูกน้องทั้งหมด</div>
+                                <div className="text-sm text-gray-600">พนักงานในทีม</div>
                                 <div className="text-3xl font-bold text-blue-600">{mySubordinates.length}</div>
                             </div>
                             <UserGroupIcon className="w-12 h-12 text-blue-600 opacity-20" />

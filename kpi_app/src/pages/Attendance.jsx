@@ -7,7 +7,7 @@ const Attendance = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
-  const [selectedEmpId, setSelectedEmpId] = useState('4'); // Default emp_id = 4
+  const [selectedEmpId, setSelectedEmpId] = useState(''); // Default emp_id = 4
   const [editingAttendance, setEditingAttendance] = useState(null);
 
   // ดึงข้อมูลพนักงาน

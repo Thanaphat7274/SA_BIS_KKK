@@ -70,12 +70,13 @@ const Employee_Dashboard = ({ userName }) => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-gray-500 text-sm font-medium">คะแนนปัจจุบัน</h3>
-              <p className="text-3xl font-bold text-gray-800 mt-2">{currentScore}</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">{currentScore.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 mt-1">คะแนนเต็ม 100</p>
             </div>
             <UserCircleIcon className="h-12 w-12 text-blue-500" />
           </div>
@@ -85,29 +86,10 @@ const Employee_Dashboard = ({ userName }) => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-gray-500 text-sm font-medium">คะแนนเฉลี่ย</h3>
-              <p className="text-3xl font-bold text-gray-800 mt-2">{avgScore}</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">{avgScore.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 mt-1">เฉลี่ยจากทุกครั้งที่ประเมิน</p>
             </div>
             <ChartBarIcon className="h-12 w-12 text-green-500" />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-purple-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-gray-500 text-sm font-medium">การพัฒนา</h3>
-              <p className="text-3xl font-bold text-green-600 mt-2">{improvement}</p>
-            </div>
-            <ArrowTrendingUpIcon className="h-12 w-12 text-purple-500" />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-md border-l-4 border-orange-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-gray-500 text-sm font-medium">อันดับในบริษัท</h3>
-              <p className="text-3xl font-bold text-gray-800 mt-2">{rank}</p>
-            </div>
-            <TrophyIcon className="h-12 w-12 text-orange-500" />
           </div>
         </div>
       </div>
@@ -125,7 +107,7 @@ const Employee_Dashboard = ({ userName }) => {
               <RadarChart data={competencyScores}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="competency" />
-                <PolarRadiusAxis domain={[0, 5]} />
+                <PolarRadiusAxis domain={[0, 90]} />
                 <Radar name="คะแนน" dataKey="score" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.6} />
                 <Tooltip />
               </RadarChart>
@@ -159,8 +141,8 @@ const Employee_Dashboard = ({ userName }) => {
                   <td className="p-3 text-gray-600">{evaluation.date}</td>
                   <td className="p-3 font-medium text-gray-800">{evaluation.evaluator}</td>
                   <td className="p-3 text-center">
-                    <span className={`font-bold ${evaluation.score >= 4.0 ? 'text-green-600' : 'text-orange-600'}`}>
-                      {evaluation.score.toFixed(1)}
+                    <span className={`font-bold ${evaluation.score >= 80 ? 'text-green-600' : evaluation.score >= 70 ? 'text-blue-600' : 'text-orange-600'}`}>
+                      {evaluation.score.toFixed(2)}
                     </span>
                   </td>
                   <td className="p-3 text-gray-600">

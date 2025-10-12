@@ -109,13 +109,7 @@ const Login = () => {
           </button>
         </form>
 
-        {/* Signup */}
-        <p className="mt-4 text-center text-sm text-gray-600">
-          ยังไม่มีบัญชี?{" "}
-          <a href="#" className="text-blue-500 hover:underline">
-            สมัครสมาชิก
-          </a>
-        </p>
+       
       </div>
     </div>
   );

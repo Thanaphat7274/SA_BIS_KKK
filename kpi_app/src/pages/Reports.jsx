@@ -101,15 +101,16 @@ const Reports = () => {
         return details && details.e_comment && details.e_comment.trim() !== '';
       });
     } else if (statusFilter === 'not-evaluated') {
-      // หาพนักงานที่ยังไม่ได้ประเมินในปีที่เลือก (ไม่รวม HR)
+      // หาพนักงานที่ยังไม่ได้ประเมินในปีที่เลือก (ไม่รวม HR และ Supervisor)
       return allEmployees
         .filter(emp => {
-          // กรอง HR ออก
+          // กรอง HR และ Supervisor ออก
           const isHR = emp.role === 'hr' || emp.role === 'HR';
+          const isSupervisor = emp.role === 'supervisor' || emp.role === 'Supervisor';
           // กรองคนที่ยังไม่ได้ประเมิน
           const notEvaluated = !evaluatedEmpIds.includes(emp.emp_id);
           
-          return !isHR && notEvaluated;
+          return !isHR && !isSupervisor && notEvaluated;
         })
         .map(emp => ({
           emp_id: emp.emp_id,
@@ -126,8 +127,9 @@ const Reports = () => {
       const notEvaluatedEmployees = allEmployees
         .filter(emp => {
           const isHR = emp.role === 'hr' || emp.role === 'HR';
+          const isSupervisor = emp.role === 'supervisor' || emp.role === 'Supervisor';
           const notEvaluated = !evaluatedEmpIds.includes(emp.emp_id);
-          return !isHR && notEvaluated;
+          return !isHR && !isSupervisor && notEvaluated;
         })
         .map(emp => ({
           emp_id: emp.emp_id,
@@ -148,31 +150,39 @@ const Reports = () => {
 
   const filteredData = getFilteredData();
   
-  // นับจำนวนพนักงานที่ไม่ใช่ HR
-  const nonHREmployees = allEmployees.filter(emp => emp.role !== 'hr' && emp.role !== 'HR');
+  // นับจำนวนพนักงานที่ไม่ใช่ HR และ Supervisor
+  const nonHREmployees = allEmployees.filter(emp => 
+    emp.role !== 'hr' && emp.role !== 'HR' && 
+    emp.role !== 'supervisor' && emp.role !== 'Supervisor'
+  );
   
-  // นับ evaluations ที่ไม่ใช่ HR และตรงกับปีที่เลือก
+  // นับ evaluations ที่ไม่ใช่ HR และ Supervisor และตรงกับปีที่เลือก
   const currentYear = parseInt(selectedYear) || new Date().getFullYear();
   const nonHREvaluations = evaluations.filter(e => {
     const emp = allEmployees.find(emp => emp.emp_id === e.emp_id);
-    return emp && emp.role !== 'hr' && emp.role !== 'HR' && e.year === currentYear;
+    return emp && 
+      emp.role !== 'hr' && emp.role !== 'HR' && 
+      emp.role !== 'supervisor' && emp.role !== 'Supervisor' && 
+      e.year === currentYear;
   });
   
-  // นับจำนวนพนักงานที่ยืนยันผลการประเมินแล้ว (ไม่รวม HR)
+  // นับจำนวนพนักงานที่ยืนยันผลการประเมินแล้ว (ไม่รวม HR และ Supervisor)
   const confirmedEvaluations = evaluations.filter(evaluation => {
     const emp = allEmployees.find(emp => emp.emp_id === evaluation.emp_id);
     const isNotHR = emp && emp.role !== 'hr' && emp.role !== 'HR';
+    const isNotSupervisor = emp && emp.role !== 'supervisor' && emp.role !== 'Supervisor';
     const details = evaluationDetails[evaluation.appraisal_id];
-    return isNotHR && details && details.e_comment && details.e_comment.trim() !== '';
+    return isNotHR && isNotSupervisor && details && details.e_comment && details.e_comment.trim() !== '';
   });
   const confirmedCount = confirmedEvaluations.length;
   
-  // นับจำนวนพนักงานที่รอยืนยัน (ประเมินแล้วแต่ยังไม่ได้ยืนยัน) (ไม่รวม HR)
+  // นับจำนวนพนักงานที่รอยืนยัน (ประเมินแล้วแต่ยังไม่ได้ยืนยัน) (ไม่รวม HR และ Supervisor)
   const waitingConfirmEvaluations = evaluations.filter(evaluation => {
     const emp = allEmployees.find(emp => emp.emp_id === evaluation.emp_id);
     const isNotHR = emp && emp.role !== 'hr' && emp.role !== 'HR';
+    const isNotSupervisor = emp && emp.role !== 'supervisor' && emp.role !== 'Supervisor';
     const details = evaluationDetails[evaluation.appraisal_id];
-    return isNotHR && (!details || !details.e_comment || details.e_comment.trim() === '');
+    return isNotHR && isNotSupervisor && (!details || !details.e_comment || details.e_comment.trim() === '');
   });
   const waitingConfirmCount = waitingConfirmEvaluations.length;
   
@@ -181,7 +191,7 @@ const Reports = () => {
     .filter(e => e.year === currentYear)
     .map(e => e.emp_id);
   
-  // นับพนักงานที่ยังไม่ประเมินในปีนี้ (ไม่นับ HR)
+  // นับพนักงานที่ยังไม่ประเมินในปีนี้ (ไม่นับ HR และ Supervisor)
   const notEvaluatedEmployees = nonHREmployees.filter(emp => 
     !evaluatedEmpIdsThisYear.includes(emp.emp_id)
   );

@@ -1,19 +1,38 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { UserPlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 const AddEmployee = ({ onClose, onSuccess }) => {
   const [firstname, setFirstname] = useState("");
   const [lastname, setLastname] = useState("");
   const [hireDate, setHireDate] = useState("");
+  const [positionId, setPositionId] = useState("");
+  const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState({ firstname: "", lastname: "", hireDate: "" });
+  const [error, setError] = useState({ firstname: "", lastname: "", hireDate: "", position: "" });
   const [successMessage, setSuccessMessage] = useState("");
+
+  // Fetch positions on component mount
+  useEffect(() => {
+    const fetchPositions = async () => {
+      try {
+        const response = await fetch('http://localhost:8080/api/positions');
+        if (response.ok) {
+          const data = await response.json();
+          setPositions(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching positions:', error);
+      }
+    };
+    fetchPositions();
+  }, []);
+
   const handleSignup = async (e) => {
     e.preventDefault();
     setLoading(true);
     setSuccessMessage("");
     
     let hasError = false;
-    let newError = { firstname: "", lastname: "", hireDate: "" };
+    let newError = { firstname: "", lastname: "", hireDate: "", position: "" };
     
     if (!firstname.trim()) {
       newError.firstname = "กรุณากรอกชื่อจริง";
@@ -25,6 +44,10 @@ const AddEmployee = ({ onClose, onSuccess }) => {
     }
     if (!hireDate) {
       newError.hireDate = "กรุณาเลือกวันจ้าง";
+      hasError = true;
+    }
+    if (!positionId) {
+      newError.position = "กรุณาเลือกตำแหน่ง";
       hasError = true;
     } 
     
@@ -41,7 +64,8 @@ const AddEmployee = ({ onClose, onSuccess }) => {
         body: JSON.stringify({ 
           firstname: firstname.trim(), 
           lastname: lastname.trim(), 
-          hiredate: hireDate 
+          hiredate: hireDate,
+          positionId: parseInt(positionId)
         })
       });
 
@@ -53,6 +77,7 @@ const AddEmployee = ({ onClose, onSuccess }) => {
         setFirstname('');
         setLastname('');
         setHireDate('');
+        setPositionId('');
         // เรียก callback ถ้ามี
         if (onSuccess) {
           onSuccess(data);
@@ -178,6 +203,36 @@ const AddEmployee = ({ onClose, onSuccess }) => {
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Position Dropdown */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              ตำแหน่ง <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={positionId}
+              onChange={(e) => setPositionId(e.target.value)}
+              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                error.position ? 'border-red-300 bg-red-50' : 'border-gray-300'
+              }`}
+              disabled={loading}
+            >
+              <option value="">-- เลือกตำแหน่ง --</option>
+              {positions.map((position) => (
+                <option key={position.position_id} value={position.position_id}>
+                  {position.position_name}
+                </option>
+              ))}
+            </select>
+            {error.position && (
+              <p className="text-red-500 text-sm mt-1 flex items-center">
+                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                {error.position}
+              </p>
+            )}
           </div>
 
           {/* Hire Date */}

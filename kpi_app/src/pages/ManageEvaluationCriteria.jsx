@@ -375,11 +375,13 @@ const ManageEvaluationCriteria = () => {
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
           >
             <option value="">-- เลือกตำแหน่งงาน --</option>
-            {positions.map((pos) => (
-              <option key={pos.position_id} value={pos.position_id}>
-                {pos.position_name}
-              </option>
-            ))}
+            {positions
+              .filter((pos) => pos.position_name !== 'Human Resources')
+              .map((pos) => (
+                <option key={pos.position_id} value={pos.position_id}>
+                  {pos.position_name}
+                </option>
+              ))}
           </select>
           
         </div>

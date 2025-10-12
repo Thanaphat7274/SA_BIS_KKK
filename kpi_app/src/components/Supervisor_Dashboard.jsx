@@ -149,22 +149,7 @@ const Supervisor_Dashboard = ({ userName }) => {
       </div>
 
       {/* Scores by Position Bar Chart */}
-      {scoresByPosition.length > 0 && (
-        <div className="bg-white p-6 rounded-xl shadow-md">
-          <h2 className="text-lg font-semibold mb-4 text-gray-700">
-            คะแนนเฉลี่ยตามตำแหน่ง
-          </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={scoresByPosition}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="position" />
-              <YAxis domain={[0, 5]} />
-              <Tooltip />
-              <Bar dataKey="avgScore" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      
 
       {/* Team Members Table */}
       <div className="bg-white p-6 rounded-xl shadow-md">
@@ -179,7 +164,7 @@ const Supervisor_Dashboard = ({ userName }) => {
                 <th className="text-left p-3 font-semibold text-gray-700">ตำแหน่ง</th>
                 <th className="text-center p-3 font-semibold text-gray-700">คะแนนล่าสุด</th>
                 <th className="text-center p-3 font-semibold text-gray-700">สถานะ</th>
-                <th className="text-center p-3 font-semibold text-gray-700">การกระทำ</th>
+                
               </tr>
             </thead>
             <tbody>
@@ -201,11 +186,7 @@ const Supervisor_Dashboard = ({ userName }) => {
                       {member.status}
                     </span>
                   </td>
-                  <td className="p-3 text-center">
-                    <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-lg text-xs transition">
-                      ดูรายละเอียด
-                    </button>
-                  </td>
+                  
                 </tr>
               ))}
             </tbody>
