@@ -74,15 +74,9 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
 
   // ฟังก์ชัน Submit การประเมิน
   const handleSubmit = async () => {
-    // ตรวจสอบว่ามีคะแนนหรือไม่
+    // ตรวจสอบว่ามีคะแนนหรือไม่ (อนุญาตให้ส่งได้แม้ไม่มีคะแนน)
     const totalSubdetails = details.reduce((sum, d) => sum + (d.subdetails?.length || 0), 0);
     const scoredCount = Object.keys(scores).filter(k => scores[k] !== '' && scores[k] != null).length;
-    
-    if (scoredCount === 0) {
-      setSubmitMessage('กรุณาให้คะแนนอย่างน้อย 1 รายการ');
-      return;
-    }
-
     if (scoredCount < totalSubdetails) {
       if (!window.confirm(`คุณประเมินไปแล้ว ${scoredCount}/${totalSubdetails} รายการ ต้องการส่งผลการประเมินหรือไม่?`)) {
         return;
@@ -394,7 +388,7 @@ const EvaluationForm = ({ employee, position, expectedScore = 5 }) => {
         <div className="flex justify-center">
           <button
             onClick={handleSubmit}
-            disabled={submitting || Object.keys(scores).length === 0}
+            disabled={submitting}
             className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 focus:ring-4 focus:ring-blue-300 transition-all transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             {submitting ? (
