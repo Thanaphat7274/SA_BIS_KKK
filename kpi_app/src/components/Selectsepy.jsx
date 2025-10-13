@@ -15,32 +15,30 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                
                 // ดึงข้อมูลพนักงาน
                 const empResponse = await fetch('http://localhost:8080/api/employees');
-                const empData = await empResponse.json();
+                let empData = await empResponse.json();
+                if (!Array.isArray(empData)) empData = [];
                 console.log('Employees data:', empData);
                 setEmployees(empData);
-                
                 // ดึงข้อมูลตำแหน่ง
                 const posResponse = await fetch('http://localhost:8080/api/positions');
-                const posData = await posResponse.json();
+                let posData = await posResponse.json();
+                if (!Array.isArray(posData)) posData = [];
                 console.log('Positions data:', posData);
                 setPositions(posData);
-                
                 // ดึงข้อมูลการประเมิน
                 const evalResponse = await fetch('http://localhost:8080/api/evaluations');
-                const evalData = await evalResponse.json();
+                let evalData = await evalResponse.json();
+                if (!Array.isArray(evalData)) evalData = [];
                 console.log('Evaluations data:', evalData);
                 setEvaluations(evalData);
-                
                 setLoading(false);
             } catch (error) {
                 console.error('Error fetching data:', error);
                 setLoading(false);
             }
         };
-
         fetchData();
     }, []);
 
@@ -76,15 +74,21 @@ const Selectsepy = ({ userRole, userName , userFullName }) => {
 
     // ดึง emp_id ของ supervisor ที่ล็อกอิน
     const currentEmpId = parseInt(localStorage.getItem('emp_id'));
-    
+
+    // DEBUG LOGS
+    console.log('All employees:', employees);
+    console.log('Current Supervisor emp_id:', currentEmpId, typeof currentEmpId);
+    (employees || []).forEach(emp => {
+      console.log('emp_id:', emp.emp_id, 'manager_id:', emp.manager_id, typeof emp.manager_id);
+    });
+
     // กรองเฉพาะลูกน้องของ supervisor (manager_id ตรงกับ emp_id ของผู้ล็อกอิน)
     const mySubordinates = (employees || []).filter(emp => 
-        emp.manager_id === currentEmpId &&
+        emp.manager_id == currentEmpId && // ใช้ == เพื่อรองรับ string/int
         emp.role !== 'hr' && 
         emp.role !== 'HR'
     );
-    
-    console.log('Current Supervisor emp_id:', currentEmpId);
+
     console.log('My Subordinates:', mySubordinates);
     
     // หาพนักงานที่ถูกประเมินในปีปัจจุบันแล้ว

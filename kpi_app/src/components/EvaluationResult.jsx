@@ -605,33 +605,37 @@ const EvaluationResult = ({ username }) => {
         </div>
 
         {/* Manager Comment Section */}
-        {evaluationData.m_comment && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg shadow-lg p-6 mt-6">
-            <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-7 h-7 mr-3 text-blue-600">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
-              </svg>
-              <span className="flex-1">ความคิดเห็นจากหัวหน้า</span>
-              <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-normal">
-                📋 Supervisor Feedback
-              </span>
-            </h3>
-            <div className="bg-white rounded-xl p-5 border-2 border-blue-100 shadow-inner">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 mr-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-                    👤
-                  </div>
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg shadow-lg p-6 mt-6">
+          <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-7 h-7 mr-3 text-blue-600">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+            </svg>
+            <span className="flex-1">ความคิดเห็นจากหัวหน้า</span>
+            <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-normal">
+              📋 Supervisor Feedback
+            </span>
+          </h3>
+          <div className="bg-white rounded-xl p-5 border-2 border-blue-100 shadow-inner">
+            <div className="flex items-start">
+              <div className="flex-shrink-0 mr-3">
+                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+                  👤
                 </div>
-                <div className="flex-1">
+              </div>
+              <div className="flex-1">
+                {evaluationData.m_comment && evaluationData.m_comment.trim() !== '' ? (
                   <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-base">
                     {evaluationData.m_comment}
                   </p>
-                </div>
+                ) : (
+                  <p className="text-gray-400 italic leading-relaxed text-base">
+                    ไม่มีการแสดงความคิดเห็น
+                  </p>
+                )}
               </div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Employee Comment Section */}
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 rounded-lg shadow-lg p-6 mt-6">
