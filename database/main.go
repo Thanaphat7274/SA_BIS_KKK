@@ -645,6 +645,7 @@ func getEvaluationDetail(c *gin.Context) {
 	}
 
 	var info EvalInfo
+	var mComment, eComment sql.NullString
 	err := db.QueryRow(`
 		SELECT 
 			e.emp_id,
@@ -652,13 +653,15 @@ func getEvaluationDetail(c *gin.Context) {
 			e.last_name,
 			COALESCE(p.position_name, ''),
 			a.year,
-			a.evaluated_at
+			a.evaluated_at,
+			a.m_comment,
+			a.e_comment
 		FROM appraisal a
 		JOIN employees e ON a.user_id = e.emp_id
 		LEFT JOIN position p ON e.pos_id = p.position_id
 		WHERE a.ap_id = ?
 	`, appraisalID).Scan(&info.EmpID, &info.FirstName, &info.LastName,
-		&info.PositionName, &info.Year, &info.EvaluatedAt)
+		&info.PositionName, &info.Year, &info.EvaluatedAt, &mComment, &eComment)
 
 	if err != nil {
 		c.JSON(404, gin.H{"error": "Evaluation not found"})
@@ -810,6 +813,8 @@ func getEvaluationDetail(c *gin.Context) {
 		"scores":      scoresMap,
 		"total_score": totalScore,
 		"attendance":  attendance,
+		"m_comment":   mComment.String,
+		"e_comment":   eComment.String,
 	})
 }
 
@@ -926,6 +931,53 @@ func getEvaluationByUsername(c *gin.Context) {
 	// เรียกใช้ฟังก์ชัน getEvaluationByID
 	c.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", latestAppraisalID)}}
 	getEvaluationByID(c)
+}
+
+func submitEmployeeComment(c *gin.Context) {
+	type CommentRequest struct {
+		AppraisalID int    `json:"appraisal_id" binding:"required"`
+		EComment    string `json:"e_comment"`
+	}
+
+	var req CommentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	// ตรวจสอบว่ามีการยืนยันไปแล้วหรือไม่
+	var existingComment sql.NullString
+	err := db.QueryRow(`
+		SELECT e_comment 
+		FROM appraisal 
+		WHERE ap_id = ?
+	`, req.AppraisalID).Scan(&existingComment)
+
+	if err != nil {
+		c.JSON(404, gin.H{"error": "Evaluation not found"})
+		return
+	}
+
+	if existingComment.Valid && existingComment.String != "" {
+		c.JSON(400, gin.H{"error": "Employee comment already submitted"})
+		return
+	}
+
+	// อัพเดต e_comment
+	_, err = db.Exec(`
+		UPDATE appraisal 
+		SET e_comment = ? 
+		WHERE ap_id = ?
+	`, req.EComment, req.AppraisalID)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to submit comment"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": "Employee comment submitted successfully",
+	})
 }
 
 func getDetails(c *gin.Context) {
@@ -1907,6 +1959,7 @@ func main() {
 
 	api.GET("/evaluation/latest", getLatestEvaluation)
 	api.GET("/evaluation/user/:username", getEvaluationByUsername)
+	api.POST("/submitEmployeeComment", submitEmployeeComment)
 	api.GET("/profile/:username", getProfile)
 	api.PUT("/profile/:username", updateProfile)
 	api.GET("/dashboard/employee/:username", getEmployeeDashboard)

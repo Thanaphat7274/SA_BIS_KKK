@@ -38,6 +38,7 @@ const Login = () => {
       .then((data) => {
         alert(data.message || 'Login success');
         console.log(data);
+        localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("role", data.role);
         localStorage.setItem("username", data.username);
         localStorage.setItem("name", data.name);
@@ -49,8 +50,8 @@ const Login = () => {
         console.log('local == ', localStorage.getItem("role"));
         console.log('local name == ', localStorage.getItem("name"));
         console.log('local emp_id == ', localStorage.getItem("emp_id"));
-        if (data.role === 'admin') navigate('/');
-        else navigate('/');
+        if (data.role === 'admin') navigate('/kpi');
+        else navigate('/kpi');
       })
       .catch((err) => {
         alert(err.message);
