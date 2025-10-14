@@ -259,24 +259,7 @@ const Reports = () => {
               </select>
             </div>
 
-            {/* กรองตามสาขา (เตรียมไว้) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <DocumentTextIcon className="w-4 h-4 inline mr-1" />
-                กรองตามสาขา
-              </label>
-              <select
-                value={selectedBranch}
-                onChange={(e) => setSelectedBranch(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled
-              >
-                <option value="">-- ทั้งหมด --</option>
-                <option value="1">สาขาหลัก</option>
-                <option value="2">สาขา 2</option>
-              </select>
-              <p className="text-xs text-gray-400 mt-1">* ยังไม่พร้อมใช้งาน</p>
-            </div>
+           
 
             {/* สถิติ */}
             <div className="flex items-center justify-center bg-blue-50 rounded-lg p-3">
