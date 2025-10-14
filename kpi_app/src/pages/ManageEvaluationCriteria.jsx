@@ -487,7 +487,7 @@ const ManageEvaluationCriteria = () => {
               {/* ช่องกรอกหัวข้อการให้คะแนน 5 ระดับ */}
               <div className="mb-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
                 <h3 className="text-md font-semibold text-gray-700 mb-3">
-                  กำหนดเกณฑ์การให้คะแนน (1-5 คะแนน)
+                  กำหนดเกณฑ์การให้คะแนน 
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
                   กรอกรายละเอียดของแต่ละระดับคะแนน เพื่อใช้เป็นเกณฑ์ในการประเมิน

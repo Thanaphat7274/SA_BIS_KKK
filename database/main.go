@@ -37,6 +37,7 @@ type EvaluationSubmission struct {
 	Year     int               `json:"year"`
 	Scores   map[string]int    `json:"scores"`   // key: "detailID_subdetailID", value: scoreLevel
 	Comments map[string]string `json:"comments"` // key: "detailID_subdetailID", value: comment
+	MComment string            `json:"m_comment"` // ความคิดเห็นจากหัวหน้า
 }
 
 type Detail struct {
@@ -469,10 +470,10 @@ func submitEvaluation(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	// 1. สร้าง Appraisal
-	result, err := tx.Exec(`INSERT INTO appraisal (user_id, year, evaluated_at) 
-		VALUES (?, ?, datetime('now'))`,
-		submission.EmpID, submission.Year)
+	// 1. สร้าง Appraisal พร้อม m_comment
+	result, err := tx.Exec(`INSERT INTO appraisal (user_id, year, evaluated_at, m_comment) 
+		VALUES (?, ?, datetime('now'), ?)`,
+		submission.EmpID, submission.Year, submission.MComment)
 
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to create appraisal", "details": err.Error()})
@@ -528,6 +529,48 @@ func submitEvaluation(c *gin.Context) {
 		}
 	}
 
+	// 3. คำนวณและบันทึกคะแนนการเข้างาน
+	var attendanceScore float64 = 10.0 // คะแนนเต็ม 10
+	var absent, late, leave int
+
+	// ดึงข้อมูลการเข้างานของปีนั้น
+	err = tx.QueryRow(`
+		SELECT 
+			COUNT(CASE WHEN status = 'ขาด' THEN 1 END) as absent,
+			COUNT(CASE WHEN status = 'สาย' THEN 1 END) as late,
+			COUNT(CASE WHEN status = 'ลา' THEN 1 END) as leave
+		FROM attendance
+		WHERE emp_id = ? AND strftime('%Y', date) = ?
+	`, submission.EmpID, fmt.Sprintf("%d", submission.Year)).Scan(&absent, &late, &leave)
+
+	if err != nil && err != sql.ErrNoRows {
+		c.JSON(500, gin.H{"error": "Failed to fetch attendance data"})
+		return
+	}
+
+	// คำนวณคะแนนการเข้างานตามกฎ
+	if absent > 0 {
+		attendanceScore = 0 // ขาด = คะแนนเป็น 0
+	} else {
+		deduction := float64(leave)*0.2 + float64(late)*0.1
+		if (leave + late) > 5 {
+			deduction += 1.0
+		}
+		attendanceScore = attendanceScore - deduction
+		if attendanceScore < 0 {
+			attendanceScore = 0
+		}
+	}
+
+	// บันทึกคะแนนการเข้างาน (ใช้ detail_id = 0, subdetail_id = 0 เป็น special case)
+	_, err = tx.Exec(`INSERT INTO Score (appraisal_id, detail_id, subdetail_id, score_value) 
+		VALUES (?, 0, 0, ?)`, appraisalID, attendanceScore)
+	
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to save attendance score"})
+		return
+	}
+
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		c.JSON(500, gin.H{"error": "Failed to commit transaction"})
@@ -535,8 +578,9 @@ func submitEvaluation(c *gin.Context) {
 	}
 
 	c.JSON(201, gin.H{
-		"message":      "Evaluation submitted successfully",
-		"appraisal_id": appraisalID,
+		"message":         "Evaluation submitted successfully",
+		"appraisal_id":    appraisalID,
+		"attendance_score": attendanceScore,
 	})
 }
 
@@ -784,10 +828,22 @@ func getEvaluationDetail(c *gin.Context) {
 		detailsArray = append(detailsArray, *detail)
 	}
 
-	// คำนวณคะแนนรวม
+	// คำนวณคะแนนรวม (รวมคะแนนการเข้างานด้วย)
 	var totalScore float64
 	for _, score := range scoresMap {
 		totalScore += score
+	}
+
+	// ดึงคะแนนการเข้างาน (detail_id = 0, subdetail_id = 0)
+	var attendanceScore float64
+	err = db.QueryRow(`
+		SELECT COALESCE(score_value, 0)
+		FROM Score
+		WHERE appraisal_id = ? AND detail_id = 0 AND subdetail_id = 0
+	`, appraisalID).Scan(&attendanceScore)
+
+	if err == nil {
+		totalScore += attendanceScore // รวมคะแนนการเข้างานเข้ากับคะแนนรวม
 	}
 
 	// ดึงข้อมูลการเข้างาน (attendance) ของปีนั้นๆ
@@ -1658,7 +1714,7 @@ func getEmployeeDashboard(c *gin.Context) {
 		JOIN detail d ON s.detail_id = d.detail_id
 		WHERE a.user_id = ? AND a.ap_id = (
 			SELECT ap_id FROM appraisal WHERE user_id = ? ORDER BY evaluated_at DESC LIMIT 1
-		)
+		) AND s.detail_id > 0
 		GROUP BY d.detail_id, d.topic, d.max_score
 	`, empID, empID)
 
@@ -1672,16 +1728,38 @@ func getEmployeeDashboard(c *gin.Context) {
 		}
 	}
 
+	// เพิ่มคะแนนการเข้างาน (detail_id = 0)
+	var attendanceScore sql.NullFloat64
+	err = db.QueryRow(`
+		SELECT s.score_value
+		FROM Score s
+		JOIN appraisal a ON s.appraisal_id = a.ap_id
+		WHERE a.user_id = ? AND s.detail_id = 0 AND s.subdetail_id = 0
+		AND a.ap_id = (
+			SELECT ap_id FROM appraisal WHERE user_id = ? ORDER BY evaluated_at DESC LIMIT 1
+		)
+	`, empID, empID).Scan(&attendanceScore)
+
+	if err == nil && attendanceScore.Valid {
+		dashboard.CompetencyScores = append(dashboard.CompetencyScores, CompetencyScore{
+			Competency: "การเข้างาน",
+			Score:      attendanceScore.Float64,
+			FullMark:   10,
+		})
+	}
+
 	// ดึงประวัติการประเมินล่าสุด - ใช้คะแนนจริง
 	evalRows, err := db.Query(`
 		SELECT 
 			a.evaluated_at,
-			'ผู้ประเมิน' as evaluator,
+			COALESCE(m.first_name || ' ' || m.last_name, 'ผู้ประเมิน') as evaluator,
 			SUM(s.score_value) as total,
-			'' as evaluator_comment,
-			'' as employee_comment
+			COALESCE(a.m_comment, '') as evaluator_comment,
+			COALESCE(a.e_comment, '') as employee_comment
 		FROM appraisal a
 		LEFT JOIN Score s ON a.ap_id = s.appraisal_id
+		LEFT JOIN employees e ON a.user_id = e.emp_id
+		LEFT JOIN employees m ON e.manager_id = m.emp_id
 		WHERE a.user_id = ?
 		GROUP BY a.ap_id
 		ORDER BY a.evaluated_at DESC
@@ -1693,15 +1771,11 @@ func getEmployeeDashboard(c *gin.Context) {
 		for evalRows.Next() {
 			var eval RecentEvaluation
 			var total float64
-			var evaluatorComment, employeeComment sql.NullString
+			var evaluatorComment, employeeComment string
 			evalRows.Scan(&eval.Date, &eval.Evaluator, &total, &evaluatorComment, &employeeComment)
 			eval.Score = total // ใช้คะแนนจริง
-			if evaluatorComment.Valid {
-				eval.EvaluatorComment = evaluatorComment.String
-			}
-			if employeeComment.Valid {
-				eval.EmployeeComment = employeeComment.String
-			}
+			eval.EvaluatorComment = evaluatorComment
+			eval.EmployeeComment = employeeComment
 			dashboard.RecentEvaluations = append(dashboard.RecentEvaluations, eval)
 		}
 	}
@@ -1762,18 +1836,19 @@ func getSupervisorDashboard(c *gin.Context) {
 		SELECT 
 			e.emp_id,
 			e.first_name || ' ' || e.last_name as name,
-			'พนักงาน' as position,
+			COALESCE(p.position_name, 'พนักงาน') as position,
 			COALESCE(MAX(total.score), 0) as last_score,
 			CASE WHEN MAX(a.evaluated_at) IS NOT NULL THEN 'ประเมินแล้ว' ELSE 'รอการประเมิน' END as status
 		FROM employees e
+		LEFT JOIN position p ON e.pos_id = p.position_id
 		LEFT JOIN appraisal a ON e.emp_id = a.user_id
 		LEFT JOIN (
-			SELECT appraisal_id, SUM(score_value)/20.0 as score
+			SELECT appraisal_id, SUM(score_value) as score
 			FROM Score
 			GROUP BY appraisal_id
 		) total ON a.ap_id = total.appraisal_id
 		WHERE e.manager_id = ?
-		GROUP BY e.emp_id, e.first_name, e.last_name
+		GROUP BY e.emp_id, e.first_name, e.last_name, p.position_name
 	`, empID)
 
 	if err == nil {
@@ -1783,9 +1858,9 @@ func getSupervisorDashboard(c *gin.Context) {
 			memberRows.Scan(&member.ID, &member.Name, &member.Position, &member.LastScore, &member.Status)
 
 			// TODO: คำนวณ Trend จากประวัติคะแนน
-			if member.LastScore >= 4.0 {
+			if member.LastScore >= 80.0 {
 				member.Trend = "up"
-			} else if member.LastScore < 3.5 {
+			} else if member.LastScore < 70.0 {
 				member.Trend = "down"
 			} else {
 				member.Trend = "stable"
@@ -1794,7 +1869,7 @@ func getSupervisorDashboard(c *gin.Context) {
 			dashboard.TeamMembers = append(dashboard.TeamMembers, member)
 
 			// เพิ่มใน NeedsAttention ถ้าคะแนนต่ำหรือ trend ลง
-			if member.LastScore < 4.0 || member.Trend == "down" {
+			if member.LastScore < 80.0 || member.Trend == "down" {
 				dashboard.NeedsAttention = append(dashboard.NeedsAttention, member)
 			}
 		}
@@ -1829,7 +1904,7 @@ func getSupervisorDashboard(c *gin.Context) {
 func getHRDashboard(c *gin.Context) {
 	dashboard := HRDashboardData{}
 
-	// คำนวณคะแนนเฉลี่ยทั้งบริษัท
+	// คำนวณคะแนนเฉลี่ยทั้งบริษัท (รวมคะแนนการเข้างานแล้ว)
 	var avgScore sql.NullFloat64
 	db.QueryRow(`
 		SELECT AVG(total_score) FROM (
@@ -1841,7 +1916,7 @@ func getHRDashboard(c *gin.Context) {
 	`).Scan(&avgScore)
 
 	if avgScore.Valid {
-		dashboard.AvgScore = avgScore.Float64 / 20.0
+		dashboard.AvgScore = avgScore.Float64
 	}
 
 	// คะแนนตามแผนก
@@ -1852,7 +1927,7 @@ func getHRDashboard(c *gin.Context) {
 		FROM employees e
 		JOIN appraisal a ON e.emp_id = a.user_id
 		JOIN (
-			SELECT appraisal_id, SUM(score_value)/20.0 as score
+			SELECT appraisal_id, SUM(score_value) as score
 			FROM Score
 			GROUP BY appraisal_id
 		) total ON a.ap_id = total.appraisal_id

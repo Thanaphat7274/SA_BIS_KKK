@@ -373,7 +373,8 @@ const EvaluationDetailModal = ({ appraisalId, onClose }) => {
                 const attendanceScore = data.attendance 
                   ? calculateAttendanceScore(data.attendance).score 
                   : 0;
-                const totalScore = data.total_score + attendanceScore;
+                // total_score จาก backend รวมคะแนนการเข้างานแล้ว ไม่ต้องบวกซ้ำ
+                const totalScore = data.total_score;
                 return (
                   <>
                     <p className="text-5xl font-bold text-green-600">{totalScore.toFixed(2)}</p>

@@ -24,7 +24,14 @@ function App() {
       <div className="App">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route 
+            path="/" 
+            element={
+              <ProtectedRoute>
+                <KPIPage />
+              </ProtectedRoute>
+            } 
+          />
           <Route 
             path="/kpi" 
             element={

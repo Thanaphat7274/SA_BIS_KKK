@@ -173,9 +173,10 @@ const Supervisor_Dashboard = ({ userName }) => {
                   <td className="p-3 font-medium text-gray-800">{member.name}</td>
                   <td className="p-3 text-gray-600">{member.position}</td>
                   <td className="p-3 text-center">
-                    <span className={`font-bold ${member.lastScore >= 4.0 ? 'text-green-600' : 'text-orange-600'}`}>
-                      {member.lastScore.toFixed(1)}
+                    <span className={`font-bold ${member.lastScore >= 80.0 ? 'text-green-600' : member.lastScore >= 70.0 ? 'text-yellow-600' : 'text-orange-600'}`}>
+                      {member.lastScore.toFixed(2)}
                     </span>
+                    <span className="text-xs text-gray-500 ml-1">/ 100</span>
                   </td>
                   <td className="p-3 text-center">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -195,30 +196,7 @@ const Supervisor_Dashboard = ({ userName }) => {
       </div>
 
       {/* Needs Attention Section */}
-      {needsAttention.length > 0 && (
-        <div className="bg-orange-50 border-l-4 border-orange-500 p-6 rounded-xl shadow-md">
-          <h2 className="text-lg font-semibold mb-3 text-orange-800 flex items-center">
-            <ExclamationTriangleIcon className="h-6 w-6 mr-2" />
-            สมาชิกที่ต้องให้ความสนใจ
-          </h2>
-          <div className="space-y-2">
-            {needsAttention.map((member) => (
-              <div key={member.id} className="bg-white p-3 rounded-lg flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-800">{member.name}</p>
-                  <p className="text-sm text-gray-600">{member.position}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">คะแนน: <span className="font-bold text-orange-600">{member.lastScore}</span></p>
-                  <p className={`text-xs ${getTrendColor(member.trend)}`}>
-                    แนวโน้ม: {member.trend === "down" ? "ลดลง" : member.trend === "up" ? "เพิ่มขึ้น" : "คงที่"}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      
 
       {/* Top Performer Highlight */}
       <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg">
@@ -230,7 +208,8 @@ const Supervisor_Dashboard = ({ userName }) => {
           </div>
           <div className="text-right">
             <p className="text-sm text-green-100">คะแนนสูงสุด</p>
-            <p className="text-4xl font-bold">{highestScorer.lastScore}</p>
+            <p className="text-4xl font-bold">{highestScorer.lastScore.toFixed(2)}</p>
+            <p className="text-xs text-green-100 mt-1">จาก 100 คะแนน</p>
           </div>
         </div>
       </div>

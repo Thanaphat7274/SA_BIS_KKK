@@ -546,7 +546,8 @@ const EvaluationResult = ({ username }) => {
               const attendanceScore = evaluationData.attendance 
                 ? calculateAttendanceScore(evaluationData.attendance).score 
                 : 0;
-              const totalScore = evaluationData.total_score + attendanceScore;
+              // total_score จาก backend รวมคะแนนการเข้างานแล้ว ไม่ต้องบวกซ้ำ
+              const totalScore = evaluationData.total_score;
               return (
                 <>
                   <p className="text-5xl font-bold text-green-600">{totalScore.toFixed(2)}</p>

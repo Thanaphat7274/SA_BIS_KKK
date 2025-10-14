@@ -107,7 +107,7 @@ const Employee_Dashboard = ({ userName }) => {
               <RadarChart data={competencyScores}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="competency" />
-                <PolarRadiusAxis domain={[0, 90]} />
+                <PolarRadiusAxis domain={[0, 100]} />
                 <Radar name="คะแนน" dataKey="score" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.6} />
                 <Tooltip />
               </RadarChart>
@@ -132,7 +132,7 @@ const Employee_Dashboard = ({ userName }) => {
                 <th className="text-left p-3 font-semibold text-gray-700 w-32">ผู้ประเมิน</th>
                 <th className="text-center p-3 font-semibold text-gray-700 w-20">คะแนน</th>
                 <th className="text-left p-3 font-semibold text-gray-700">ความคิดเห็นของผู้ประเมิน</th>
-                <th className="text-left p-3 font-semibold text-gray-700">ความคิดเห็นของผู้ถูกประเมิน</th>
+                <th className="text-left p-3 font-semibold text-gray-700">ความคิดเห็นของคุณ</th>
               </tr>
             </thead>
             <tbody>
